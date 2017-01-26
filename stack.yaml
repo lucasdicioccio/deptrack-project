@@ -1,0 +1,8 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- 'deptrack-core'
+- 'deptrack-devops'
+extra-deps:
+- 'dotgen-0.4.2'
+resolver: lts-7.15

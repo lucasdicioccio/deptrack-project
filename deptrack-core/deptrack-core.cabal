@@ -1,0 +1,26 @@
+name:                deptrack-core
+version:             0.1.0.0
+synopsis:            DepTrack Core types and model.
+description:         Rather than building and maintaing a dependency tree/graph by hand. DepTrack proposes to _track_ dependencies as a side-effect of a computation.
+homepage:            https://github.com/lucasdicioccio/deptrack-project
+license:             Apache-2.0
+license-file:        LICENSE
+author:              Lucas DiCioccio
+maintainer:          lucas@dicioccio.fr
+copyright:           2017 Lucas DiCioccio
+category:            Graphs
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     DepTrack, DepTrack.Parsing, DepTrack.DepCrumb
+  other-extensions:    TupleSections, FlexibleInstances, MultiParamTypeClasses, DeriveFunctor
+  build-depends:       base
+                     , containers
+                     , dlist
+                     , parsec
+                     , mtl
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
