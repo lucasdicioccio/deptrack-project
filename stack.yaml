@@ -3,6 +3,7 @@ extra-package-dbs: []
 packages:
 - 'deptrack-core'
 - 'deptrack-devops'
+- 'deptrack-devops-recipes'
 extra-deps:
 - 'dotgen-0.4.2'
 resolver: lts-7.15

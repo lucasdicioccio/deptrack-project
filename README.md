@@ -3,7 +3,20 @@ DepTrack project
 
 Umbrella repository for the various DepTrack projects.
 
-# deptrack-core
+# Goal of DepTrack.
+
+Please read individual subprojects descriptions below until I find time to
+write some abstract here.
+
+TODO: write a mini intro
+
+# Using DepTrack
+
+TODO: write a mini intro, a tutorial, and link to it
+
+# Sub-projects
+
+## deptrack-core
 
 The lowest-level brick, a monad transformer to describe trees and
 directed-acyclic graphs. Don't be afraid of the jargon, it only means that the
@@ -11,7 +24,7 @@ key finding of the DepTrack approach is that your program can log information
 and that this log of information is way more useful when it's shaped like a
 tree than when it's shaped like a linear sequence.
 
-# deptrack-devops
+## deptrack-devops
 
 Devops is a job title, and Devops engineers need to do two main things: (a)
 describe an infrastructure and, (b) evaluate the description (e.g., to make the
@@ -74,7 +87,10 @@ advantages:
 
 One drawback of using Haskell is that there's more upfront learning than
 learning YAML+scripting languages. However, longer term, the author believes
-you can reach further with DepTrack than existing Devops tools: Haskell users
-sit on the shoulders of giants and benefit from a very expressive language to
-encode invariants such as "you cannot run a program that you've not installed
-first".
+you can reach further with DepTrack than existing Devops tools.
+
+## deptrack-devops-recipes
+
+This module provides some recipes to configure machines. It contains things I
+found useful to configure my personal servers; mostly Debian-like.
+Organization of this module is likely to change.

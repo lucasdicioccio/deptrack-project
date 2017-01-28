@@ -2,7 +2,7 @@
 
 module Devops.Actions (
     concurrentTurnup , concurrentTurndown , concurrentUpkeep , checkStatuses
-  , display , dotify , dotifyWithStatuses
+  , display , defaultDotify , dotifyWithStatuses
   , listUniqNodes
   ) where
 
@@ -82,16 +82,6 @@ listUniqNodes forest =
   let uniq f xs = Map.toList . Map.fromList $ zip (map f xs) xs
   in putStrLn . unlines . map (\(k,v) -> show (k, opName $ opDescription v)) . uniq opUniqueId . map runPreOp . concatMap flatten $ forest
 
--- | Builds a dot-formatted representation of the graph
-dotify :: OpGraph -> String
-dotify = dotifyWith nameAttributes
-
--- | Same as dotify but also colorize based on statuses passed in second argument.
-dotifyWithStatuses :: OpGraph -> Map OpUniqueId CheckResult -> String
-dotifyWithStatuses graph x = 
-    let allAttributes = nameAttributes <> colorFromStatusAttributes x
-    in dotifyWith allAttributes graph
-
 -- | Returns a .dot formatted string of a graph using a projection function to
 -- format every PreOp using .dot valid key/value node attributes.
 dotifyWith :: (PreOp -> [(String,String)]) -> OpGraph -> String
@@ -105,6 +95,16 @@ dotifyWith attributes (g,lookupF,_) =
         let es = filter (uncurry (/=)) $ edges g
         mapM_ (\i -> userNode (userNodeId i) (attributes (node i))) vs
         mapM_ (\(i,j) -> edge (userNodeId i) (userNodeId j) []) es
+
+-- | Builds a dot-formatted representation of the graph
+defaultDotify :: OpGraph -> String
+defaultDotify = dotifyWith nameAttributes
+
+-- | Same as dotify but also colorize based on statuses passed in second argument.
+dotifyWithStatuses :: OpGraph -> Map OpUniqueId CheckResult -> String
+dotifyWithStatuses graph x = 
+    let allAttributes = nameAttributes <> colorFromStatusAttributes x
+    in dotifyWith allAttributes graph
 
 nameAttributes :: PreOp -> [(String, String)]
 nameAttributes preOp =

@@ -25,6 +25,9 @@ module Devops.Base (
   , neutralize
   , TypedPreOp , castPreop
   , devop
+  , Name
+  --
+  , runDevOp
   ) where
 
 import           Control.Monad.Identity (Identity, runIdentity)
@@ -45,6 +48,10 @@ type DevOpT m a = DepTrackT PreOp m a
 -- | Handy name for tracking DevOp dependencies using a pure computation
 -- (recommended).
 type DevOp a = DevOpT Identity a
+
+-- | Evaluates the return value of a DevOp, discarding the dependencies.
+runDevOp :: DevOp a -> a
+runDevOp = runIdentity . value
 
 -- | Encapsulates a deferred `Op` along with an `a` argument to generate it.
 --

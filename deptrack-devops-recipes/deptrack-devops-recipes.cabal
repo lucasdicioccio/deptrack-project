@@ -1,0 +1,70 @@
+name:                deptrack-devops-recipes
+version:             0.1.0.0
+synopsis:            Nodes to configure machines using deptrack-devops.
+description:         Please see README.md
+homepage:            https://github.com/lucasdicioccio/deptrack-project
+license:             Apache-2.0
+license-file:        LICENSE
+author:              Lucas DiCioccio
+maintainer:          lucas@dicioccio.fr
+copyright:           2017 Lucas DiCioccio
+category:            DevOps
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:  Devops.Archive
+                  , Devops.Apparmor
+                  , Devops.Authentication
+                  , Devops.BaseImage
+                  , Devops.Binary
+                  , Devops.Callback
+                  , Devops.Debian
+                  , Devops.Debian.Base
+                  , Devops.Debian.Commands
+                  , Devops.Debian.Packages
+                  , Devops.Debian.Repositories
+                  , Devops.Debian.User
+                  , Devops.Dhcp
+                  , Devops.DnsResolver
+                  , Devops.Downloads
+                  , Devops.Git
+                  , Devops.Haskell
+                  , Devops.ImageBootstrap
+                  , Devops.Linux
+                  , Devops.Networking
+                  , Devops.Nginx
+                  , Devops.OS
+                  , Devops.Optimize
+                  , Devops.Parasite
+                  , Devops.Python
+                  , Devops.Qemu
+                  , Devops.QemuNbd
+                  , Devops.R
+                  , Devops.Ref
+                  , Devops.Service
+                  , Devops.StaticSite
+                  , Devops.Storage
+                  , Devops.Storage.Base
+                  , Devops.SysQuery
+                  , Devops.Utils
+  build-depends:       base >= 4.7 && < 5
+                     , base64-bytestring
+                     , binary
+                     , bytestring
+                     , containers
+                     , deptrack-core
+                     , deptrack-devops
+                     , directory
+                     , distributed-closure
+                     , filepath
+                     , hdaemonize
+                     , lens
+                     , process
+                     , strict
+                     , string-conversions
+                     , text
+                     , unix
+  default-language:    Haskell2010
