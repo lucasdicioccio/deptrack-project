@@ -34,9 +34,7 @@ resolver: lts-7.15
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-- location:
-   git: https://github.com/lucasdicioccio/deptrack-core.git
-   commit: c137d12802f47fb06688a2d73a2e82865084cf1e
+- '../deptrack-core/'
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
