@@ -12,7 +12,11 @@ TODO: write a mini intro
 
 # Using DepTrack
 
-TODO: write a mini intro, a tutorial, and link to it
+TODO: write a mini intro, a tutorial, and link to it;
+for now the gist is:
+- clone the repo
+- stack install the repo
+- take example on deptrack-devops-examples/ to build your binaries
 
 # Sub-projects
 
