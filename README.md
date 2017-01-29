@@ -5,14 +5,16 @@ Umbrella repository for the various DepTrack projects.
 
 # Goal of DepTrack.
 
-Please read individual subprojects descriptions below until I find time to
-write some abstract here.
-
-TODO: write a mini intro
+DepTrack is an approach more than a tool. The key finding of the DepTrack
+approach is that programs _logs are more useful when shaped like a tree_ than
+when shaped like a sequence. Using such an approach, rather than manually
+connecting nodes in a graph, one can focus on computing a value which describes
+a high-level goal and _records_ a tree of dependencies used during the
+computation.
 
 # Using DepTrack
 
-TODO: write a mini intro, a tutorial, and link to it;
+TODO: write a mini tutorial, and link to it;
 for now the gist is:
 - clone the repo
 - stack install the repo
@@ -23,20 +25,23 @@ for now the gist is:
 ## deptrack-core
 
 The lowest-level brick, a monad transformer to describe trees and
-directed-acyclic graphs. Don't be afraid of the jargon, it only means that the
-key finding of the DepTrack approach is that your program can log information
-and that this log of information is way more useful when it's shaped like a
-tree than when it's shaped like a linear sequence.
+directed-acyclic graphs. This brick allows you to write DSL-like libraries that
+record directed-acyclic graphs with a node type that best describe your
+problem. This approach let you decouple how you _operate_ on (i.e., what you do
+with) the graph from _express_ (i.e., which library builds) the graph. This
+way, the day you feel like DepTrack is no longer suitable to express your
+dependency graph you can still keep your functions to operate on the graph.
 
 ## deptrack-devops
 
-Devops is a job title, and Devops engineers need to do two main things: (a)
-describe an infrastructure and, (b) evaluate the description (e.g., to make the
-world converge towards their intention, or to diagnose which bits of the system
+This library uses deptrack-core to perform Devops tasks.  Devops is a job
+title, and Devops engineers need to do two main things: (a) describe an
+infrastructure and, (b) evaluate the description (e.g., to make the world
+converge towards their intention, or to diagnose which bits of the system
 diverged too much). In particular, (a) encodes a dependency graph between
 various subsystems of the infrastructure: faults and outages follow
 dependencies. Hence, the Devops space is a good playground for the DepTrack
-approach of building dependency graph.
+approach of building dependency graphs.
 
 The author was dissatisfied with existing Devops tools: some existing tools
 claim to use a declarative syntax (generally YAML) but actually use
@@ -49,7 +54,7 @@ main programs impose structure (which can be useful at times) but leave little
 room for creativity.
 Last, the fact that scripting languages dominate the Devops tools space is
 annoying because applications written with scripting languages are ironically
-hard to deploy and have poor performance, abismal multicore scalability.
+hard to deploy and have poor performance (and abismal multicore scalability).
 
 Existing tools have a number of drawbacks:
 - using YAML as a description language prevents taking advantage of libraries
@@ -76,18 +81,21 @@ This library is written in Haskell and requires Devops to also describe
 infrastructure in Haskell.  Using Haskell for DepTrack has the following
 advantages:
 - Devops are in charge of the dependency graph evaluation. This repository
-  provides the basics. You can build your Main program as you wish, read
-  parameters as your organization needs it rather than trying to retrofit a
+  provides the basics way of building dependency graphs and let you write your
+  main program as you wish. This approach let you read, expose, and manipulate
+  configurations as your organization needs it rather than trying to retrofit a
   Devops tool on your organization. It's not more work because it needs fewer
   "ugly hacks".
-- one can modify the dependency graph before evaluating it (e.g., to batch
+- One can modify the dependency graph before evaluating it (e.g., to batch
   actions that can be done together)
-- the type system ensures that the graph generation is deterministic (i.e.,
+- The type system ensures that the graph generation is deterministic (i.e.,
   a same input gives the same dependency graph)
-- the type system allows you to speak about high level concepts such as "remote
+- The type system allows you to speak about high level concepts such as "remote
   services providing Foo", "local service consuming Foo", and making sure you
   bind these two things correctly together
-- Haskell usually compiles to a fast, multithreaded, easy-to-deploy binary
+- Haskell usually compiles to an easy-to deploy binary.
+- Haskell comes with mature libraries, best-in-class testing frameworks, and
+  profiling tools. You can leverage all of this using DepTrack for DevOps.
 
 One drawback of using Haskell is that there's more upfront learning than
 learning YAML+scripting languages. However, longer term, the author believes
@@ -97,4 +105,28 @@ you can reach further with DepTrack than existing Devops tools.
 
 This module provides some recipes to configure machines. It contains things I
 found useful to configure my personal servers; mostly Debian-like.
-Organization of this module is likely to change.
+Organization of this module is likely to change. See the README in this
+directory to have an up-to date description.
+
+# Contributing to DepTrack
+
+Contributions to DepTrack projects are welcome. Please use GitHub issues for
+discussions. Please add yourself to the Contributors list in your pull
+requests.
+
+The bulleted-list of the DepTrack contributor is as follows:
+- be humble
+- be fair
+- be kind
+- be patient
+- all contributions matter (even one-char typos fixes in documentation)
+
+# Contributors & Thanks
+
+Sorted by first name:
+
+- Arnaud Bailly (https://github.com/abailly)
+  - plenty of intellectually-challenging discussions
+  - base implementation for reference nodes that are resolved at turnup
+- Lucas DiCioccio (https://github.com/lucasdicioccio)
+  - inventor & maintainer
