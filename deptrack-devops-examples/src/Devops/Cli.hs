@@ -7,6 +7,7 @@ module Devops.Cli (
   , getDependenciesOnly
   , opFromClosureB64
   , graphize
+  , defaultMain
   ) where
 
 import           Control.Distributed.Closure (unclosure)
@@ -63,3 +64,27 @@ applyMethod transformations originalForest method = do
     Dot      -> putStrLn . defaultDotify $ graph
     CheckDot -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
     List     -> listUniqNodes forest
+
+defaultMain :: DevOp a
+            -- ^ an operation
+            -> [(Forest PreOp -> Forest PreOp)]
+            -- ^ forest transformations to optimize the resulting graph
+            -> [String]
+            -- ^ args
+            -> IO ()
+defaultMain devop optimizations = go
+  where
+    forest = getDependenciesOnly devop
+    call m = applyMethod optimizations forest m
+    go ("up":_)        = call TurnUp
+    go ("down":_)      = call TurnDown
+    go ("upkeep":_)    = call Upkeep
+    go ("print":_)     = call Print
+    go ("dot":_)       = call Dot
+    go ("check-dot":_) = call CheckDot
+    go ("list":_)      = call List
+    go _ = putStrLn usage
+    usage = unlines [ "deptrack-devops default main:"
+                    , "  Available arguments:"
+                    , "    up, down, upkeep, print, dot, check-dot, list"
+                    ]

@@ -4,34 +4,38 @@ module Main where
 import           Control.Monad (void)
 import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
-import           Data.Tree                   (Forest)
-import           DepTrack                    (GraphData, buildGraph,
-                                              evalDepForest1)
 
 import           Devops.Debian.Base (deb)
-import           Devops.Storage (fileContent)
+import           Devops.Storage (FileContent, fileContent)
 import           Devops.Haskell (stackPackage)
 import           Devops.Debian.User (mereUser)
-import           Devops.Base
-import           Devops.Actions
-import           Devops.Cli
-import           Devops.Optimize
+import           Devops.Base (DevOp)
+import           Devops.Cli (defaultMain)
+import           Devops.Optimize (optimizeDebianPackages)
 
 main :: IO ()
-main = do
-    let forest = getDependenciesOnly devtools
-    applyMethod [optimizeDebianPackages] forest TurnUp
+main = getArgs >>= defaultMain devtools [optimizeDebianPackages]
+  where
+    devtools :: DevOp ()
+    devtools = void $ do
+        packages 
+        dotFiles
+        ghcid
 
-devtools :: DevOp ()
-devtools = void $ do
-    traverse deb [ "git-core" , "vim" , "tmux" , "graphviz" ]
-    -- some configs, assuming the system user is 'user'
+packages :: DevOp ()
+packages = void $ do
+    deb "git-core"
+    deb "vim"
+    deb "tmux"
+    deb "graphviz"
+
+dotFiles :: DevOp ()
+dotFiles = void $ do
     fileContent "/home/user/.vimrc" dotVimrc
     fileContent "/home/user/.gitconfig" dotGitconfig
     fileContent "/home/user/.bash_profile" dotBashProfile
-    -- some stack packages
-    stackPackage "ghcid" (mereUser "user")
 
+dotVimrc, dotGitconfig, dotBashProfile :: DevOp FileContent
 dotVimrc = pure $ convertString $ unlines $ [
     "syntax on"
   , "filetype plugin indent on"
@@ -51,3 +55,7 @@ dotBashProfile = pure $ convertString $ unlines $ [
   , "export PATH=\"${PATH}:${HOME}/.local/bin\""
   ]
 
+
+ghcid :: DevOp ()
+ghcid = void $ do
+    stackPackage "ghcid" (mereUser "user")
