@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Devops.Haskell (stackProject, stackPackage, StackCommand(..), builtWith) where
+module Devops.Haskell (StackProject, stackProject, stackPackage, StackCommand(..), builtWith) where
 
 import           Control.Monad          (void)
 import           Data.Monoid            ((<>))
@@ -28,7 +28,6 @@ data StackCommand = Setup | Update | Build | Install !Name | InstallIn !Name !Fi
 
 data StackProject (a :: Symbol) = StackProject
 
-instance HasBinary (StackProject x) y where
 builtWith :: HasBinary (StackProject x) c =>
     DevOp (Binary c) -> DevOp (StackProject x) -> DevOp (Binary c)
 b `builtWith` pkg = pkg *> b
