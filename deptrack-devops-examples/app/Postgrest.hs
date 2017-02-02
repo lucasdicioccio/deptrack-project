@@ -19,7 +19,7 @@ import           Devops.Binary (binary)
 import           Devops.Debian.Base (DebianPackage, debianPackage, deb, installedWith)
 import           Devops.Storage (FilePresent(..), FileContent, fileContent)
 import           Devops.Haskell (StackProject, stackProject, builtWith)
-import           Devops.Debian.User (mereUser)
+import           Devops.Debian.User (mereUser, group)
 import           Devops.Base (DevOp, buildOp, devop, noAction, noCheck)
 import           Devops.Cli (defaultMain)
 import           Devops.Optimize (optimizeDebianPackages)
@@ -32,7 +32,7 @@ main = getArgs >>= defaultMain devtools [optimizeDebianPackages]
   where
     devtools :: DevOp ()
     devtools = void $ do
-        let db = pgDatabase "yooo" (pgUser "yoyoma" "yoyomapassword")
+        let db = pgDatabase "gloubyboulga" (pgUser "casimir" "lileauxenfantsglauquissime")
         let cfg = fileContent "postgrest.cfg" (convertString . postgrestconfig <$> db)
         postgrestService $ fmap snd cfg
 
@@ -44,7 +44,7 @@ postgrestCommandArgs (FilePresent path) = [path]
 
 postgrestService :: DevOp FilePresent -> DevOp (Daemon Postgrest)
 postgrestService fp =
-    daemon "postgrest" Nothing postgrest postgrestCommandArgs fp
+    daemon "postgrest" (Just ((,) <$> mereUser "user" <*> group "user")) postgrest postgrestCommandArgs fp
 
 postgrestProject :: DevOp (StackProject "postgrest")
 postgrestProject = fmap fst $ do
@@ -111,7 +111,7 @@ pgUser username pass = devop snd mkOp $ do
         buildOp ("postgres-user: " <> username)
                 ("creates a PostGre user")
                 noCheck
-                (sudoRunAsInDir create "/var/lib/postgresql" ("postgres","postgres") ["-e", Text.unpack username, ""] ""
+                (sudoRunAsInDir create "/var/lib/postgresql" ("postgres","postgres") ["-e", Text.unpack username] ""
                  >> superPsqlShell shell ("ALTER USER " <> Text.unpack username <> " WITH PASSWORD '" <> Text.unpack pass <> "';"))
                 (sudoRunAsInDir drop "/var/lib/postgresql" ("postgres","postgres") ["-e", Text.unpack username] "")
                 noAction
