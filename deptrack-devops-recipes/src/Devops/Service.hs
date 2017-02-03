@@ -62,7 +62,7 @@ type family DaemonConfig a :: *
 -- matches the expected values.
 -- On turndown, the process is sent a SIGTERM and, after three seconds, a
 -- SIGKILL.
-daemon :: (Typeable a, KnownSymbol path) =>
+daemon :: (Typeable a) =>
      Name
   -> Maybe (DevOp (User, Group))
   -> DevOp (Binary path)
@@ -85,7 +85,7 @@ daemon name mkUserGroup mkBin toCmdArgs config = devop snd mkOp $ do
                 (killDaemon d)
                 noAction
 
-reloadableDaemon :: (Typeable a, KnownSymbol path)
+reloadableDaemon :: (Typeable a)
   => Name
   -> Maybe (DevOp (User, Group))
   -> DevOp (Binary path)
@@ -140,7 +140,7 @@ checkDaemonRunning (Daemon _ pidFile _ _) cmd args =
 sighupDaemon :: Daemon a -> IO ()
 sighupDaemon (Daemon _ pidFile _ _) = sighupPidFile pidFile
 
-runDaemon :: Daemon a -> String -> [String] -> OpAction
+runDaemon :: Daemon a -> FilePath -> [String] -> OpAction
 runDaemon (Daemon _ pidFile user_group _) cmd args =
     void $ forkProcess $ daemonize $ do
         pid <- getProcessID
