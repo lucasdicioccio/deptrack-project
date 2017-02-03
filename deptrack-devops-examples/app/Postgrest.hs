@@ -18,7 +18,7 @@ import           DepTrack (inject)
 import           Devops.Binary (binary)
 import           Devops.Debian.Base (DebianPackage, debianPackage, deb, installedWith)
 import           Devops.Storage (FilePresent(..), FileContent, fileContent)
-import           Devops.Haskell (StackProject, stackProject, builtWith)
+import           Devops.Haskell (StackProject, stackProject, stackInstall)
 import           Devops.Debian.User (mereUser, group)
 import           Devops.Base (DevOp, buildOp, devop, noAction, noCheck)
 import           Devops.Cli (defaultMain)
@@ -28,12 +28,12 @@ import           Devops.Service (daemon, Daemon, CommandArgs, DaemonConfig)
 import           Devops.Debian (sudoRunAsInDir)
 
 main :: IO ()
-main = getArgs >>= defaultMain devtools [optimizeDebianPackages]
+main = getArgs >>= defaultMain devtools [optimizeDebianPackages] >> getLine >> return ()
   where
     devtools :: DevOp ()
     devtools = void $ do
         let db = pgDatabase "gloubyboulga" (pgUser "casimir" "lileauxenfantsglauquissime")
-        let cfg = fileContent "postgrest.cfg" (convertString . postgrestconfig <$> db)
+        let cfg = fileContent "/home/user/postgrest.cfg" (convertString . postgrestconfig <$> db)
         postgrestService $ fmap snd cfg
 
 data Postgrest
@@ -44,19 +44,21 @@ postgrestCommandArgs (FilePresent path) = [path]
 
 postgrestService :: DevOp FilePresent -> DevOp (Daemon Postgrest)
 postgrestService fp =
-    daemon "postgrest" (Just ((,) <$> mereUser "user" <*> group "user")) postgrest postgrestCommandArgs fp
+    daemon "postgrest" (Just ((,) <$> mereUser "user" <*> group "user")) (postgrest "/home/user/.local/bin") postgrestCommandArgs fp
+
 
 postgrestProject :: DevOp (StackProject "postgrest")
 postgrestProject = fmap fst $ do
     let url = "https://github.com/begriffs/postgrest.git" 
     let branch = "master"
     let systemDependencies = deb "libpq-dev"
-    stackProject url branch "postgrest" [] (mereUser "user") `inject` systemDependencies
+ -- [InstallIn "postgrest" installdir]
+    stackProject url branch "postgrest" (mereUser "user") `inject` systemDependencies
 
 instance HasBinary (StackProject "postgrest") "postgrest" where
 
-postgrest :: DevOp (Binary "postgrest")
-postgrest = binary `builtWith` postgrestProject
+postgrest :: FilePath -> DevOp (Binary "postgrest")
+postgrest installdir = stackInstall installdir postgrestProject 
 
 instance HasBinary (DebianPackage "postgresql") "createdb" where
 instance HasBinary (DebianPackage "postgresql") "dropdb" where
