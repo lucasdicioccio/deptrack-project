@@ -24,7 +24,7 @@ import           Data.Monoid           ((<>))
 import qualified Data.Text             as Text
 import           Data.Typeable         (Typeable)
 import           System.Directory      (removeDirectory, doesDirectoryExist, createDirectoryIfMissing)
-import           System.FilePath.Posix ((</>))
+import           System.FilePath.Posix ((</>), takeDirectory)
 import           System.Posix.Files    (createSymbolicLink, fileExist)
 
 import           DepTrack
@@ -152,6 +152,7 @@ generatedFile :: Typeable a
               -> DevOp [String] -- ^ arguments to binary
               -> DevOp (Binary a, [String], FilePresent)
 generatedFile path mkBinary mkArgs = devop fst mkOp $ do
+    _ <- directory (takeDirectory path)
     args <- mkArgs
     cmd <- mkBinary
     sync <- Cmd.sync
