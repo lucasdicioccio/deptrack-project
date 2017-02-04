@@ -46,16 +46,16 @@ deptrack-devops default main:
 
 # deptrack-devops-example-devtools
 
-This target is currently the sole example. I use a similar binary when starting
+This target is a simple first example. I use a similar system when starting
 a new VM where I'll be developping, I need some packages, my VIM configuration
 etc. The code has a `main` function which passes the command-line arguments to
 the defaul main; the default optimization is to batch all debian packages
 together (i.e., this way we apt-get install them all at once, we do not fear
 locking when we concurrently operate the graph).
 
-The output of `dot -Tpng -o deptrack-devops-devtools.png <(
-deptrack-devops-example-devtools dot )` is as follows:
-![graph of deptrack-devops-devtools dependencies](deptrack-devops-devtools.png)
+The output of `dot -Tpng -o deptrack-devops-devtools.png <( deptrack-devops-example-devtools dot )`
+is as follows:
+![graph of deptrack-devops-example-devtools dependencies](deptrack-devops-example-devtools.png)
 
 We observe a number of things:
 - some nodes map one-to-one with the description in the code (e.g., dotfiles generation)
@@ -63,3 +63,21 @@ We observe a number of things:
   deptrack-devops-recipes does this work underneath (e.g., adding an apt
   repository to install the Haskell Stack tool)
 - all Debian packages have been lumped into a single node (as per the optimization)
+
+# deptrack-devops-example-postgrest
+
+This target is a more involved example. We want to play with PostGrest, and
+excellent REST-api provider for any PostGreSQL database. We want to get the
+dev-branch for PostGrest hence we need to build it from its Git source.  We
+also need to install PostGre and configure a user and a database.
+
+The output of `dot -Tpng -o deptrack-devops-postgrest.png <( deptrack-devops-example-postgrest dot )`
+is as follows:
+![graph of deptrack-devops-example-postgrest dependencies](deptrack-devops-example-postgrest.png)
+
+This graph is more complicated than the previous one. We can see the many
+operations required to administrate a simple database. And a lot is missing!
+No backups are defined, there are no table creations (and hence Postgrest will
+have nothing to serve). Though, you get the feeling of how to improve this
+example; creating a few tables and views could be a good addition to this
+example (I'm currently leaving this for future work).
