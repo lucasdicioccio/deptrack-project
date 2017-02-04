@@ -26,7 +26,7 @@ import           Devops.Postgre (PGUser(..), PGDatabase(..), pgUser, pgDatabase,
 import           Devops.Service (daemon, Daemon, CommandArgs, DaemonConfig)
 
 main :: IO ()
-main = getArgs >>= defaultMain devtools [optimizeDebianPackages] >> getLine >> return ()
+main = getArgs >>= defaultMain devtools [optimizeDebianPackages]
   where
     devtools :: DevOp ()
     devtools = void $ do
