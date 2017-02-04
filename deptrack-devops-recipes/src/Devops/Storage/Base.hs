@@ -23,7 +23,6 @@ import           System.FilePath.Posix (takeDirectory)
 import           System.Posix.Files    (removeLink)
 
 import           Devops.Base
-import           Devops.Utils
 
 type FileContent = ByteString
 

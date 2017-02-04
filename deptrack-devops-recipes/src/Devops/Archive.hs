@@ -3,20 +3,12 @@
 -- | Actions to manipulate archives.
 module Devops.Archive where
 
-import           Control.Exception
-import           Data.ByteString        (ByteString)
-import qualified Data.ByteString        as ByteString
 import           Data.Monoid            ((<>))
 import qualified Data.Text              as Text
-import           DepTrack
-import           Devops.Binary
 import           Devops.Debian.Commands
 import           Devops.Storage
 import           Devops.Base
 import           Devops.Utils
-import           System.Directory
-import           System.FilePath.Posix
-import           System.Posix.Files
 
 -- | Extract a given archive into a directory, stripping some number of leading components
 -- Returns the target directory

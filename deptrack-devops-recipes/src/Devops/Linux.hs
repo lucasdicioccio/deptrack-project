@@ -15,9 +15,9 @@ data KernelModule = KernelModule !Name [(Name, Value)]
 
 -- | Loads a kernel module.
 kernelmodule :: Name -> [(Name, Value)]-> DevOp KernelModule
-kernelmodule n kvs = devop fst mkOp $ do
+kernelmodule name params = devop fst mkOp $ do
   mp <- modprobe
-  return $ (KernelModule n kvs, mp)
+  return $ (KernelModule name params, mp)
   where
     mkOp (KernelModule n kvs, mp) =
              let args = fmap (\(k,v) -> Text.unpack $ k <> "=" <> v) kvs in

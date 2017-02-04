@@ -40,13 +40,14 @@ applyTransformation predicate transform xs =
 collectTypedPreOps :: Typeable a
   => Proxy a -> Forest PreOp -> [TypedPreOp a]
 collectTypedPreOps proxy xs = concatMap (go proxy) xs
-  where go :: Typeable a => Proxy a -> Tree PreOp -> [TypedPreOp a]
-        go proxy (Node p children) =
-              let pkgs = castPreop proxy p
-                  zs = collectTypedPreOps proxy children
-              in case pkgs of
-                    Nothing      -> zs
-                    (Just (k,f)) -> (k,f):zs
+  where
+    go :: Typeable a => Proxy a -> Tree PreOp -> [TypedPreOp a]
+    go prox (Node p children) =
+        let pkgs = castPreop prox p
+            zs = collectTypedPreOps prox children
+        in case pkgs of
+            Nothing      -> zs
+            (Just (k,f)) -> (k,f):zs
 
 
 -- | Collects all debian packages and run them in a single pass.

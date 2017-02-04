@@ -5,7 +5,6 @@ module Devops.Downloads where
 
 import           Data.Monoid            ((<>))
 import qualified Data.Text              as Text
-import           DepTrack               (track)
 
 import           Devops.Debian.Commands
 import           Devops.Storage

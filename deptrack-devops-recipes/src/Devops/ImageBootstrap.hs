@@ -7,7 +7,6 @@ import           Control.Monad    (void)
 import           Devops.BaseImage
 import           Devops.Callback
 import           Devops.QemuNbd
-import           Devops.Storage
 import           Devops.Base
 
 data BootstrapPhase = Setup | Configure

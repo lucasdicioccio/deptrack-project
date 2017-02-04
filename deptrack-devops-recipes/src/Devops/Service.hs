@@ -25,7 +25,6 @@ import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
 import           Data.Typeable           (Typeable)
-import           GHC.TypeLits            (KnownSymbol)
 import           Prelude                 hiding (readFile)
 import           System.FilePath.Posix   ((</>))
 import           System.IO.Strict        (readFile)

@@ -24,8 +24,7 @@ import           Devops.Actions              (concurrentTurndown,
                                               concurrentTurnup, concurrentUpkeep, display, defaultDotify,
                                               dotifyWithStatuses,
                                               listUniqNodes, checkStatuses)
-import           Devops.Base                 (DevOp, Op (..), OpFunctions (..),
-                                              OpUniqueId, PreOp, preOpUniqueId)
+import           Devops.Base                 (DevOp, OpUniqueId, PreOp, preOpUniqueId)
 
 data Method =
     TurnUp

@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Devops.Cli
+  ghc-options:         -Wall -Werror
   build-depends:       base
                      , base64-bytestring
                      , binary

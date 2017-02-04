@@ -33,6 +33,15 @@ checkExitCodeAndStdout = runAndCheckResult
 checkBinaryExitCodeAndStdout :: (String -> Bool) -> Binary a -> [String] -> String -> IO CheckResult
 checkBinaryExitCodeAndStdout f (Binary c) = runAndCheckResult f c
 
+runAndCheckResult :: (String -> Bool)
+                  -- ^ check function
+                  -> FilePath
+                  -- ^ binary path
+                  -> [String]
+                  -- ^ command args
+                  -> String
+                  -- ^ stdin
+                  -> IO CheckResult
 runAndCheckResult resultCheck command args input = do
   (code,output,_) <- readProcessWithExitCode command args input
   let !ret  = if code == ExitSuccess

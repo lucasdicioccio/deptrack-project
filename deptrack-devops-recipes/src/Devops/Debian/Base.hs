@@ -33,8 +33,7 @@ data DebianPackage (a :: Symbol) = DebianPackage !Name
 newtype DebianPackagesSet = DebianPackagesSet (Set Name)
   deriving Monoid
 
-installedWith :: HasBinary (DebianPackage a) c =>
-  DevOp (Binary c) -> DevOp (DebianPackage a) -> DevOp (Binary c)
+installedWith :: DevOp (Binary c) -> DevOp (DebianPackage a) -> DevOp (Binary c)
 b `installedWith` pkg = pkg *> b -- works because binary is generally pure
 
 -- | Note that apt cannot be bootstrapped easily and hence is a leaf

@@ -7,7 +7,6 @@ import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
-import           DepTrack                (track)
 import           System.Posix.Files      (fileGroup, fileOwner, getFileStatus)
 import           System.Posix.User       (getGroupEntryForID, getUserEntryForID,
                                           groupName, userName)

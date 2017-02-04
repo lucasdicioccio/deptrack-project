@@ -5,7 +5,7 @@ module Devops.Qemu where
 
 import           Data.Monoid            ((<>))
 import qualified Data.Text              as Text
-import           DepTrack               (declare, track)
+import           DepTrack               (declare)
 import           System.FilePath.Posix  ((</>))
 import           Text.Printf            (printf)
 
@@ -145,7 +145,7 @@ baseImageQemuVm :: (RunDir,RepoDir)
        -> Int
        -> DevOp BaseImage
        -> DevOp (Daemon QemuVM)
-baseImageQemuVm env@(rundir,repo) plan idx ram cpuCount boot = do
+baseImageQemuVm env@(rundir,_) plan idx ram cpuCount boot = do
     let disk = newDiskFromBaseImage rundir idx boot
     qemuVm env plan idx ram cpuCount disk
 
@@ -164,7 +164,7 @@ qemuVm :: (RunDir,RepoDir)
        -> Int
        -> DevOp QemuDisk
        -> DevOp (Daemon QemuVM)
-qemuVm (rundir,repo) plan idx ram cpuCount mkdisk = do
+qemuVm (rundir,_) plan idx ram cpuCount mkdisk = do
   daemon ("qemu-" <> Text.pack (show idx)) (Just qemuUserKvmGroup) qemux86 qemuCommandArgs $ do
     _ <- traverse deb ["qemu", "qemu-kvm"]
     disk <- mkdisk

@@ -19,7 +19,6 @@ module Devops.Storage (
   ) where
 
 import           Control.Exception     (catch, IOException)
-import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as ByteString
 import           Data.Monoid           ((<>))
 import qualified Data.Text             as Text

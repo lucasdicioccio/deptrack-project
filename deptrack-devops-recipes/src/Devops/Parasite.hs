@@ -23,7 +23,7 @@ import           Data.Typeable               (Typeable)
 import           System.FilePath.Posix       (takeBaseName, (</>))
 
 import           DepTrack
-import           Devops.Debian.Commands      hiding (r)
+import           Devops.Debian.Commands      hiding (r, umount)
 import           Devops.Debian.User          (homeDirPath)
 import           Devops.Networking
 import           Devops.Storage
@@ -59,14 +59,14 @@ control login mkRemote = devop fst mkOp $ do
 -- We should shove all of this in the ParasitedHost object.
 parasite :: FilePath -> DevOp ControlledHost -> DevOp ParasitedHost
 parasite selfPath mkHost = track mkOp $ do
-  (ControlledHost login r) <- mkHost
-  let selfBinary = preExistingFile selfPath
-  let rpath = homeDirPath login </> takeBaseName selfPath
-  (FileTransferred _ (Remote ip)) <- fileTransferred selfBinary rpath mkHost
-  return (ParasitedHost rpath login ip)
-
-  where mkOp (ParasitedHost _ _ ip) = noop ("parasited-host: " <> ip)
-                                           ("copies itself after in a parasite")
+    (ControlledHost login _) <- mkHost
+    let selfBinary = preExistingFile selfPath
+    let rpath = homeDirPath login </> takeBaseName selfPath
+    (FileTransferred _ (Remote ip)) <- fileTransferred selfBinary rpath mkHost
+    return (ParasitedHost rpath login ip)
+  where
+    mkOp (ParasitedHost _ _ ip) = noop ("parasited-host: " <> ip)
+                                       ("copies itself after in a parasite")
 
 -- | Turnup a given DevOp at a given remote.
 -- TODO: parametrize protocol and optional remote turndown
@@ -118,29 +118,30 @@ data SshFsMountedDir = SshFsMountedDir !FilePath
 
 sshMounted :: DevOp DirectoryPresent -> DevOp ControlledHost -> DevOp (SshFsMountedDir)
 sshMounted mkPath mkHost = devop fst mkOp $ do
-  binmount <- mount
-  sshmount <- sshfs
-  umount <- fusermount
-  (DirectoryPresent path) <- mkPath
-  host <- mkHost
-  return (SshFsMountedDir path, (host, binmount, sshmount, umount))
-  where mkOp (SshFsMountedDir path, (host, binmount, sshmount, umount)) = do
-              let (ControlledHost login (Remote ip)) = host
-              buildOp ("ssh-fs-dir: " <> Text.pack path <> "@" <> ip)
-                 ("mount " <> ip <> " at mountpoint " <> Text.pack path)
-                 (checkBinaryExitCodeAndStdout (hasMountLine path)
+    binmount <- mount
+    sshmount <- sshfs
+    umount <- fusermount
+    (DirectoryPresent path) <- mkPath
+    host <- mkHost
+    return (SshFsMountedDir path, (host, binmount, sshmount, umount))
+  where
+    mkOp (SshFsMountedDir path, (host, binmount, sshmount, umount)) = do
+        let (ControlledHost login (Remote ip)) = host
+        buildOp ("ssh-fs-dir: " <> Text.pack path <> "@" <> ip)
+                ("mount " <> ip <> " at mountpoint " <> Text.pack path)
+                (checkBinaryExitCodeAndStdout (hasMountLine path)
                                                binmount
                                                ["-l", "-t", "fuse.sshfs"] "")
-                 (blindRun sshmount [ Text.unpack login ++ "@" ++ Text.unpack ip ++ ":"
-                                    , path
-                                    , "-o", "StrictHostKeyChecking=no"
-                                    , "-o", "UserKnownHostsFile=/dev/null"
-                                    ] "")
-                 (blindRun umount [ "-u", path ] "")
-                 noAction
-        -- | Looks for the filepath in the list of mounts.
-        hasMountLine :: FilePath -> String -> Bool
-        hasMountLine path dat = elem path $ concatMap words $ lines dat
+                (blindRun sshmount [ Text.unpack login ++ "@" ++ Text.unpack ip ++ ":"
+                                   , path
+                                   , "-o", "StrictHostKeyChecking=no"
+                                   , "-o", "UserKnownHostsFile=/dev/null"
+                                   ] "")
+                (blindRun umount [ "-u", path ] "")
+                noAction
+    -- | Looks for the filepath in the list of mounts.
+    hasMountLine :: FilePath -> String -> Bool
+    hasMountLine path dat = elem path $ concatMap words $ lines dat
 
 sshFileCopy :: DevOp FilePresent -> DevOp (SshFsMountedDir) -> DevOp (RepositoryFile, FilePresent)
 sshFileCopy mkLocal mkDir = do

@@ -5,7 +5,6 @@ module Devops.Python where
 import           Data.Monoid            ((<>))
 import qualified Data.Text              as Text
 
-import           DepTrack               (track)
 import           Devops.Debian.Commands (pip3)
 import           Devops.Base           (DevOp, Name, noAction, noCheck, devop, buildOp)
 import           Devops.Utils           (blindRun)

@@ -6,6 +6,8 @@
 {-# LANGUAGE MultiParamTypeClasses        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
+
 module Devops.Haskell (StackProject, stackProject, stackInstall, stackPackage) where
 
 import           Control.Monad          (void)
@@ -16,7 +18,6 @@ import           Data.Proxy             (Proxy (..))
 import           GHC.TypeLits           (KnownSymbol, Symbol, symbolVal)
 import           System.FilePath        ((</>))
 
-import           DepTrack               (track)
 import           Devops.Binary          (Binary (..), HasBinary)
 import           Devops.Debian          (sudoRunAsInDir)
 import           Devops.Debian.Commands (git, stack)

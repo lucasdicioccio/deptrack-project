@@ -30,7 +30,7 @@ saveRef = track mkOp . return . Ref
     mkOp (Ref k) = noop ("reference: " <> k) ("save reference for later use " <> k)
 
 
-resolveRef :: (HasResolver a c, Typeable a, Show c) => DevOp (Ref a) -> DevOp c -> DevOp (Resolver a)
+resolveRef :: (HasResolver a c, Typeable a) => DevOp (Ref a) -> DevOp c -> DevOp (Resolver a)
 resolveRef mkRef context = devop snd mkOp $ do
   Ref k <- mkRef
   ctx <- context

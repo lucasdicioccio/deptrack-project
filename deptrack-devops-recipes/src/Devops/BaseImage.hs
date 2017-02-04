@@ -2,7 +2,6 @@
 
 module Devops.BaseImage where
 
-import           Control.Monad           (void)
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import           Data.Text               (Text)
@@ -28,7 +27,7 @@ data BaseImageConfig = BaseImageConfig {
   , imageSize :: !(GB Size)
   , pubKeys   :: !FileContent
   , binPath   :: !FilePath -- Path to binary to turnup a new base image.
-  , suite     :: !DebootstrapSuite
+  , cfgSuite  :: !DebootstrapSuite
   }
 
 newtype Partitioned a = Partitioned a
@@ -180,26 +179,28 @@ bootstrapWithStore :: (FilePath -> DevOp FilePresent -> DevOp FilePresent)
           -> CallBackMethod
           -> DevOp BaseImage
 bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBootstrapArgs) = do
-  let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
-  let backedupQcow = QemuImage <$> store imgpath (fmap getImage qcow)
-  let src = localRepositoryFile selfPath
-  let base = debootstrapped (suite cfg) dirname (formatted (partition (nbdMount slot qcow)))
-  let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
-  let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
-  let copy = declare (noop "ready-to-configure" desc1) $ do
-               fileCopy (makeDestPath <$> base) src
-  let main = devop fst mkOp $ do
-        (Debootstrapped (DirectoryPresent mntPath)) <- base
-        _ <- copy
-        cr <- chroot
-        return (BaseImage (FilePresent imgpath) cfg, (cr,mntPath))
-  fmap snd (backedupQcow `inject` main)
-  where mkOp (_,(cr,mntPath)) = buildOp
-                       ("bootstrap-configured") ("finalizes configuration")
-                       noCheck
-                       (blindRun cr ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
-                       noAction
-                       noAction
+    let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
+    let backedupQcow = QemuImage <$> store imgpath (fmap getImage qcow)
+    let src = localRepositoryFile selfPath
+    let base = debootstrapped (cfgSuite cfg) dirname (formatted (partition (nbdMount slot qcow)))
+    let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
+    let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
+    let copy = declare (noop "ready-to-configure" desc1) $ do
+                 fileCopy (makeDestPath <$> base) src
+    let main = devop fst mkOp $ do
+          (Debootstrapped (DirectoryPresent mntPath)) <- base
+          _ <- copy
+          cr <- chroot
+          return (BaseImage (FilePresent imgpath) cfg, (cr,mntPath))
+    fmap snd (backedupQcow `inject` main)
+  where
+    mkOp (_,(cr,mntPath)) = buildOp
+        ("bootstrap-configured") ("finalizes configuration")
+        noCheck
+        (blindRun cr ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
+        noAction
+        noAction
+bootstrapWithStore _ _ _ _ _ NoCallBack = error "TODO: cannot bootstrap with no callback"
 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
 bootstrapConfig :: NBDSlot -> BaseImageConfig -> DevOp a -> DevOp a
@@ -210,15 +211,15 @@ bootstrapConfig slot cfg extraConfig= do
    let extraGroups = fmap fst $ (traverse group ["sudo"]) `inject` deb "sudo"
    let u = user login g extraGroups
    let sshSecretsDir = userDirectory ".ssh" u
-   let extraPkgs = traverse deb [(dhcpClientPackageName . suite) cfg, (kernelPackageName . suite) cfg ]
+   let extraPkgs = traverse deb [(dhcpClientPackageName . cfgSuite) cfg, (kernelPackageName . cfgSuite) cfg ]
    let extraFiles = do
          authKeyspath <- (\(DirectoryPresent dirpath) -> dirpath </> "authorized_keys") <$> sshSecretsDir
          _ <- fileContent authKeyspath (pure keys) `inject` sshSecretsDir
          _ <- fileContent "/etc/sudoers" (pure sudoers) `inject` deb "sudo"
          _ <- fileContent "/etc/fstab" (pure fstab)
-         _ <- fileContent "/etc/dhcp/dhclient-exit-hooks.d/hostname" (pure hostnameDhcpHook) `inject` (deb $ (dhcpClientPackageName . suite) cfg)
+         _ <- fileContent "/etc/dhcp/dhclient-exit-hooks.d/hostname" (pure hostnameDhcpHook) `inject` (deb $ (dhcpClientPackageName . cfgSuite) cfg)
          _ <- fileContent "/etc/network/interfaces.d/loopback" (pure loopbackIfaceConfig) `inject` deb "ifupdown"
-         _ <- ethernetAdapterDchpConfig (suite cfg)
+         _ <- ethernetAdapterDchpConfig (cfgSuite cfg)
          return ()
    let baseConfig = grubSetup slot `inject` (u >> extraPkgs >> extraFiles)
    fst <$> (extraConfig `inject` baseConfig)
