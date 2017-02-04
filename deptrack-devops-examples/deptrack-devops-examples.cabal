@@ -33,7 +33,7 @@ library
 
 executable deptrack-devops-example-devtools
   hs-source-dirs:      app
-  main-is:             Main.hs
+  main-is:             Devtools.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , containers
