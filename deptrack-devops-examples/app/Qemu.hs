@@ -52,7 +52,7 @@ vm self = qemuVm (rundir, repo) addressPlan index ram cpus disk
     disk = newDiskFromBaseImage rundir index baseImage
 
     baseImage :: DevOp BaseImage
-    baseImage = dirtyBootstrap "/tmp/debootstrap" savedImagePath nbdSlot baseImageConfig callback
+    baseImage = dirtyBootstrap "/opt/repo/debootstrap" savedImagePath nbdSlot baseImageConfig callback
 
     callback :: CallBackMethod
     callback = BinaryCall self magicArgv

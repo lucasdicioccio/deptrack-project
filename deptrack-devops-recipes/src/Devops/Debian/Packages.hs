@@ -64,6 +64,9 @@ nginx = debianPackage
 opensshClient :: DevOp (DebianPackage "openssh-client")
 opensshClient = debianPackage
 
+parted :: DevOp (DebianPackage "parted")
+parted = debianPackage
+
 passwd :: DevOp (DebianPackage "passwd")
 passwd = debianPackage
 
@@ -119,6 +122,7 @@ instance HasBinary (DebianPackage "nginx") "/usr/sbin/nginx"
 instance HasBinary (DebianPackage "openssh-client") "scp"
 instance HasBinary (DebianPackage "openssh-client") "ssh"
 instance HasBinary (DebianPackage "openssh-client") "ssh-keygen"
+instance HasBinary (DebianPackage "parted") "parted"
 instance HasBinary (DebianPackage "passwd") "groupadd"
 instance HasBinary (DebianPackage "passwd") "groupdel"
 instance HasBinary (DebianPackage "passwd") "useradd"

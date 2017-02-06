@@ -61,6 +61,9 @@ updateGrub = binary `installedWith` Pkg.grub
 nginx :: DevOp (Binary "/usr/sbin/nginx")
 nginx = binary `installedWith` Pkg.nginx
 
+parted :: DevOp (Binary "/sbin/parted")
+parted = binary `installedWith` Pkg.parted
+
 sshfs :: DevOp (Binary "sshfs")
 sshfs = binary `installedWith` Pkg.sshfs
 
