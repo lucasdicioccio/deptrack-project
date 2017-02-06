@@ -39,21 +39,22 @@ data Debootstrapped = Debootstrapped !DirectoryPresent
 -- TODO: relax type on NBDExport and work on any block device.
 partition :: DevOp NBDExport -> DevOp (Partitioned NBDExport)
 partition mkBlock = devop (Partitioned . fst) mkOp $ do
-  let schema = unlines [ ",512,82"    -- linux swap, 512
-                       , ",,,*"       -- bootable rest
-                       , ""           -- pray
-                       ]
-  blkdev <- mkBlock
-  fdisk <- sfdisk
-  return (blkdev, (schema, fdisk))
-  where mkOp (NBDExport slot _, (schema, fdisk)) =
-                 let path = nbdDevicePath slot in
-                 buildOp ("partition-ndb:" <> Text.pack path)
-                         ("re-partitions a disk")
-                         (noCheck)
-                         (blindRun fdisk [path, "-D", "-uM"] schema)
-                         (noAction)
-                         (noAction)
+    let schema = unlines [ ",512,82"    -- linux swap, 512
+                         , ",,,*"       -- bootable rest
+                         , ""           -- pray
+                         ]
+    blkdev <- mkBlock
+    fdisk <- sfdisk
+    return (blkdev, (schema, fdisk))
+  where
+    mkOp (NBDExport slot _, (schema, fdisk)) =
+        let path = nbdDevicePath slot in
+        buildOp ("partition-ndb:" <> Text.pack path)
+                ("re-partitions a disk")
+                (noCheck)
+                (blindRun fdisk [path, "-D", "-uM"] schema)
+                (noAction)
+                (noAction)
 
 -- | Path to the swap partition of the NBD-exported image.
 swapPartitionPath :: Partitioned NBDExport -> FilePath
@@ -67,19 +68,20 @@ rootPartitionPath (Partitioned (NBDExport n _)) = nbdPartitionPath n 2
 -- TODO: use preferences for the filesystem type.
 formatted :: DevOp (Partitioned NBDExport) -> DevOp (Formatted (Partitioned NBDExport))
 formatted mkNbdmount = devop (Formatted . fst) mkOp $ do
-  swap <- mkswap
-  mkfs <- mkfsExt3
-  blockdev@(Partitioned (NBDExport slot _)) <- mkNbdmount
-  return (blockdev, (slot,swap,mkfs))
-  where mkOp (blockdev, (slot,swap,mkfs)) =
-                let path = nbdDevicePath slot in
-                buildOp ("format-nbd:" <> Text.pack path)
-                        ("re-formats a disk")
-                        (noCheck)
-                        (blindRun swap [swapPartitionPath blockdev] ""
-                         >> blindRun mkfs [rootPartitionPath blockdev] "")
-                        (noAction)
-                        (noAction)
+    swap <- mkswap
+    mkfs <- mkfsExt3
+    blockdev@(Partitioned (NBDExport slot _)) <- mkNbdmount
+    return (blockdev, (slot,swap,mkfs))
+  where
+    mkOp (blockdev, (slot,swap,mkfs)) =
+        let path = nbdDevicePath slot in
+        buildOp ("format-nbd:" <> Text.pack path)
+                ("re-formats a disk")
+                (noCheck)
+                (blindRun swap [swapPartitionPath blockdev] ""
+                 >> blindRun mkfs [rootPartitionPath blockdev] "")
+                (noAction)
+                (noAction)
 
 -- | The configuration for the suite to debootstrap.
 -- TODO: push more of the configuration here.
@@ -124,34 +126,36 @@ debootstrapped :: DebootstrapSuite
   -> DevOp (Formatted (Partitioned NBDExport))
   -> DevOp Debootstrapped
 debootstrapped suite dirname mkPartitions = devop fst mkOp $ do
-  let args mntdir = [ "--variant", "buildd"
-                    , "--arch", "amd64"
-                    , "--include", "openssh-server,sudo,ntp,libgmp-dev,grub-pc"
-                    , Text.unpack (suiteName suite)
-                    , mntdir
-                    , Text.unpack (mirrorURL $ mirror suite)
-                    ]
-  dir@(DirectoryPresent mntdir) <- directory dirname
-  (Formatted partitions) <- mkPartitions
-  mnt <- mount
-  umnt <- umount
-  dstrap <- debootstrap
-  cr <- chroot
-  return (Debootstrapped dir, (partitions, dstrap, cr, mnt, umnt, mntdir, args))
-  where mkOp (_, (blockdev, dstrap, cr, mnt, umnt, mntdir, args)) = buildOp
-          ("debootstrap")
-          ("unpacks a clean intallation in" <> Text.pack mntdir)
-          (noCheck)
-          (blindRun mnt [rootPartitionPath blockdev, mntdir] ""
-           >> blindRun dstrap (args mntdir) ""
-           >> blindRun mnt ["-o", "bind", "/dev", mntdir </> "dev"] ""
-           >> blindRun cr [mntdir, "mount", "-t", "proc", "none", "/proc"] ""
-           >> blindRun cr [mntdir, "mount", "-t", "sysfs", "none", "/sys"] "")
-          (blindRun cr [mntdir, "umount", "/proc"] ""
-           >> blindRun cr [mntdir, "umount", "/sys"] ""
-           >> blindRun umnt [mntdir </> "dev"] ""
-           >> blindRun umnt [rootPartitionPath blockdev] "")
-          (noAction)
+    let args mntdir = [ "--variant", "buildd"
+                      , "--arch", "amd64"
+                      , "--include", "openssh-server,sudo,ntp,libgmp-dev,grub-pc"
+                      , Text.unpack (suiteName suite)
+                      , mntdir
+                      , Text.unpack (mirrorURL $ mirror suite)
+                      ]
+    dir@(DirectoryPresent mntdir) <- directory dirname
+    (Formatted partitions) <- mkPartitions
+    mnt <- mount
+    umnt <- umount
+    dstrap <- debootstrap
+    cr <- chroot
+    return (Debootstrapped dir, (partitions, dstrap, cr, mnt, umnt, mntdir, args))
+  where
+    mkOp (_, (blockdev, dstrap, cr, mnt, umnt, mntdir, args)) =
+        buildOp
+            ("debootstrap")
+            ("unpacks a clean intallation in" <> Text.pack mntdir)
+            (noCheck)
+            (blindRun mnt [rootPartitionPath blockdev, mntdir] ""
+             >> blindRun dstrap (args mntdir) ""
+             >> blindRun mnt ["-o", "bind", "/dev", mntdir </> "dev"] ""
+             >> blindRun cr [mntdir, "mount", "-t", "proc", "none", "/proc"] ""
+             >> blindRun cr [mntdir, "mount", "-t", "sysfs", "none", "/sys"] "")
+            (blindRun cr [mntdir, "umount", "/proc"] ""
+             >> blindRun cr [mntdir, "umount", "/sys"] ""
+             >> blindRun umnt [mntdir </> "dev"] ""
+             >> blindRun umnt [rootPartitionPath blockdev] "")
+            (noAction)
 
 -- | Bootstraps a base image, copying the image after turndown.
 bootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
@@ -205,40 +209,43 @@ bootstrapWithStore _ _ _ _ _ NoCallBack = error "TODO: cannot bootstrap with no 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
 bootstrapConfig :: NBDSlot -> BaseImageConfig -> DevOp a -> DevOp a
 bootstrapConfig slot cfg extraConfig= do
-   let login = superUser cfg
-   let keys = pubKeys cfg
-   let g = group login
-   let extraGroups = fmap fst $ (traverse group ["sudo"]) `inject` deb "sudo"
-   let u = user login g extraGroups
-   let sshSecretsDir = userDirectory ".ssh" u
-   let extraPkgs = traverse deb [(dhcpClientPackageName . cfgSuite) cfg, (kernelPackageName . cfgSuite) cfg ]
-   let extraFiles = do
-         authKeyspath <- (\(DirectoryPresent dirpath) -> dirpath </> "authorized_keys") <$> sshSecretsDir
-         _ <- fileContent authKeyspath (pure keys) `inject` sshSecretsDir
-         _ <- fileContent "/etc/sudoers" (pure sudoers) `inject` deb "sudo"
-         _ <- fileContent "/etc/fstab" (pure fstab)
-         _ <- fileContent "/etc/dhcp/dhclient-exit-hooks.d/hostname" (pure hostnameDhcpHook) `inject` (deb $ (dhcpClientPackageName . cfgSuite) cfg)
-         _ <- fileContent "/etc/network/interfaces.d/loopback" (pure loopbackIfaceConfig) `inject` deb "ifupdown"
-         _ <- ethernetAdapterDchpConfig (cfgSuite cfg)
-         return ()
-   let baseConfig = grubSetup slot `inject` (u >> extraPkgs >> extraFiles)
-   fst <$> (extraConfig `inject` baseConfig)
+     let login = superUser cfg
+     let keys = pubKeys cfg
+     let g = group login
+     let extraGroups = fmap fst $ (traverse group ["sudo"]) `inject` deb "sudo"
+     let u = user login g extraGroups
+     let sshSecretsDir = userDirectory ".ssh" u
+     let extraPkgs = traverse deb [(dhcpClientPackageName . cfgSuite) cfg, (kernelPackageName . cfgSuite) cfg ]
+     let extraFiles = do
+           authKeyspath <- (\(DirectoryPresent dirpath) -> dirpath </> "authorized_keys") <$> sshSecretsDir
+           _ <- fileContent authKeyspath (pure keys) `inject` sshSecretsDir
+           _ <- fileContent "/etc/sudoers" (pure sudoers) `inject` deb "sudo"
+           _ <- fileContent "/etc/fstab" (pure fstab)
+           _ <- fileContent "/etc/dhcp/dhclient-exit-hooks.d/hostname" (pure hostnameDhcpHook) `inject` (deb $ (dhcpClientPackageName . cfgSuite) cfg)
+           _ <- fileContent "/etc/network/interfaces.d/loopback" (pure loopbackIfaceConfig) `inject` deb "ifupdown"
+           _ <- ethernetAdapterDchpConfig (cfgSuite cfg)
+           return ()
+     let baseConfig = grubSetup slot `inject` (u >> extraPkgs >> extraFiles)
+     fst <$> (extraConfig `inject` baseConfig)
 
 -- | Setups grub on the NBD device from the chroot and fixes grub.cfg
 grubSetup :: NBDSlot -> DevOp ()
 grubSetup slot = devop (const ()) mkOp $ do
-  gi <- grubInstall
-  ug <- updateGrub
-  let path = nbdDevicePath slot
-  let rootpath = nbdPartitionPath slot 2
-  return (gi, ug, path, rootpath)
-  where mkOp (gi,ug,path, rootpath) = buildOp ("setup-grub") ("dirty grub setup from a chroot")
-                          (noCheck)
-                          (blindRun gi ["--recheck", path] ""
-                           >> blindRun ug [] ""
-                           >> replaceInFile "/boot/grub/grub.cfg" (Text.pack rootpath) "/dev/sda2")
-                          (noAction)
-                          (noAction)
+    gi <- grubInstall
+    ug <- updateGrub
+    let path = nbdDevicePath slot
+    let rootpath = nbdPartitionPath slot 2
+    return (gi, ug, path, rootpath)
+  where
+    mkOp (gi,ug,path, rootpath) =
+        buildOp ("setup-grub")
+                ("dirty grub setup from a chroot")
+                (noCheck)
+                (blindRun gi ["--recheck", path] ""
+                 >> blindRun ug [] ""
+                 >> replaceInFile "/boot/grub/grub.cfg" (Text.pack rootpath) "/dev/sda2")
+                (noAction)
+                (noAction)
 
 -- | Configuration content for loopback interface.
 loopbackIfaceConfig :: FileContent
@@ -275,10 +282,11 @@ hostnameDhcpHook = "hostname $new_host_name"
 -- | Configuration file to let sudo-group members run commands without a
 -- password.
 sudoers :: FileContent
-sudoers = convertString $ unlines [ "Defaults env_reset"
-                  , "Defaults mail_badpass"
-                  , "Defaults secure_path=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\""
-                  , "root ALL=(ALL:ALL) ALL"
-                  , "%admin ALL=(ALL) ALL"
-                  , "%sudo   ALL=(ALL) NOPASSWD:ALL"
-                  ]
+sudoers = convertString $ unlines [
+    "Defaults env_reset"
+ , "Defaults mail_badpass"
+ , "Defaults secure_path=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\""
+ , "root ALL=(ALL:ALL) ALL"
+ , "%admin ALL=(ALL) ALL"
+ , "%sudo   ALL=(ALL) NOPASSWD:ALL"
+ ]
