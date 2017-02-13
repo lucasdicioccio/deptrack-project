@@ -52,6 +52,9 @@ iptables = debianPackage
 iscDhcpServer :: DevOp (DebianPackage "isc-dhcp-server")
 iscDhcpServer = debianPackage
 
+jenkins :: DevOp (DebianPackage "jenkins")
+jenkins = generalDebianPackage "jenkins" Repos.jenkins
+
 kmod :: DevOp (DebianPackage "kmod")
 kmod = debianPackage
 

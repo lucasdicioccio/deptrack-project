@@ -34,6 +34,13 @@ rCran = do
     let keys = aptGetKeys "keyserver.ubuntu.com" "E084DAB9"
     DebianRepository <$> repo <*> keys
 
+jenkins :: DevOp DebianRepository
+jenkins = do
+  let url = "http://pkg.jenkins.io/debian-stable"
+  let repo = sourceRepository "jenkins" url (Left $ "binary/")
+  let keys = aptGetKeys "keyserver.ubuntu.com" "D50582E6"
+  DebianRepository <$> repo <*> keys
+
 docker :: DevOp DebianRepository
 docker = do
     let url = "https://apt.dockerproject.org/repo"
