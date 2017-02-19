@@ -68,7 +68,7 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
     let nbd = nbdMount slot qcow
     let nbdBlock = fmap nbdDevice nbd
     let formatted = formatDevice (partition schema nbdBlock)
-    let rootPartition = fmap (head . namedPartitions . unFormat) formatted
+    let rootPartition = fmap ((!! 1) . namedPartitions . unFormat) formatted
     let mountedRootPartition = mount rootPartition (directory dirname)
     let base = debootstrapped (cfgSuite cfg) (fmap mountPoint mountedRootPartition)
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
