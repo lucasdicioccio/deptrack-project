@@ -2,6 +2,7 @@
 module Main where
 
 import           Control.Monad (void)
+import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
 import           Devops.Base (DevOp)
@@ -18,16 +19,19 @@ import           Devops.Storage
 main :: IO ()
 main = do
     args <- getArgs
-    if args == magicArgv then chrootNestedSetup else vmSetup args
+    if isMagicArgv args then chrootNestedSetup (convertString $ head args) else vmSetup args
   where
     vmSetup :: [String] -> IO ()
-    vmSetup args = do
+    vmSetup (pubkeypath:args) = do
         self <- readSelf
-        defaultMain (vm self) [optimizeDebianPackages] args
+        pubkeys <- readPubkeyContent pubkeypath
+        defaultMain (vm self pubkeys) [optimizeDebianPackages] args
 
-    chrootNestedSetup :: IO ()
-    chrootNestedSetup = do
-        defaultMain (bootstrapConfig nbdSlot baseImageConfig imageContent) [optimizeDebianPackages] ["up"]
+    chrootNestedSetup :: PubkeyContent -> IO ()
+    chrootNestedSetup pubkeys = do
+        defaultMain (bootstrapConfig nbdSlot (baseImageConfig pubkeys) imageContent)
+                    [optimizeDebianPackages]
+                    ["up"]
 
 -- running-vm-related
 repo = "/opt/repo"
@@ -40,32 +44,43 @@ cpus = 2
 -- base-image-related
 nbdSlot = 3
 savedImagePath = "/opt/repo/deptrack-example.qemu"
-bootstrapBin = "/sbin/bootstrap-deptrack-devops" 
+bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 imgSize = 20
 imgSuperUser = "superuser"
-pubkeys = "# PASTE HERE YOUR SUPERUSER PUBLIC KEY #"
 
-vm :: Self -> DevOp (Daemon QemuVM)
-vm self = qemuVm (rundir, repo) addressPlan index ram cpus disk
+vm :: Self -> PubkeyContent -> DevOp (Daemon QemuVM)
+vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
   where
     disk :: DevOp QemuDisk
     disk = newDiskFromBaseImage rundir index baseImage
 
     baseImage :: DevOp BaseImage
-    baseImage = dirtyBootstrap "/opt/repo/debootstrap" savedImagePath nbdSlot baseImageConfig callback
+    baseImage = dirtyBootstrap "/opt/repo/debootstrap"
+                               savedImagePath
+                               nbdSlot
+                               (baseImageConfig pubkeys)
+                               callback
 
     callback :: CallBackMethod
-    callback = BinaryCall self magicArgv
+    callback = BinaryCall self (magicArgv pubkeys)
 
-baseImageConfig :: BaseImageConfig
-baseImageConfig = BaseImageConfig imgSuperUser imgSize pubkeys bootstrapBin xenial
+baseImageConfig :: PubkeyContent -> BaseImageConfig
+baseImageConfig pubkeys =
+    BaseImageConfig imgSuperUser imgSize pubkeys bootstrapBin xenial
 
 imageContent :: DevOp ()
 imageContent = return ()
 
-magicArgv = ["*", "*", "*"]
+magicArgv pubkeys = (convertString pubkeys : magicArgvTail)
+magicArgvTail = ["*", "*", "*"]
+isMagicArgv args = drop 1 args == magicArgvTail
 
 type Self = FilePath
 
 readSelf :: IO Self
 readSelf = takeWhile (/= '\NUL') <$> readFile "/proc/self/cmdline"
+
+type PubkeyContent = FileContent
+
+readPubkeyContent :: FilePath -> IO PubkeyContent
+readPubkeyContent path = convertString <$> readFile path
