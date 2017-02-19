@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 
+-- TODO:
+-- * pass VNC params to expose a networked service
+-- * pass monitor params on a char device to expose a console
 module Devops.Qemu where
 
 import           Data.Monoid            ((<>))
