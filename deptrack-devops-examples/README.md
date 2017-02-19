@@ -53,7 +53,7 @@ the defaul main; the default optimization is to batch all debian packages
 together (i.e., this way we apt-get install them all at once, we do not fear
 locking when we concurrently operate the graph).
 
-The output of `dot -Tpng -o deptrack-devops-devtools.png <( deptrack-devops-example-devtools dot )`
+The output of `dot -Tpng -o deptrack-devops-example-devtools.png <( deptrack-devops-example-devtools dot )`
 is as follows:
 ![graph of deptrack-devops-example-devtools dependencies](deptrack-devops-example-devtools.png)
 
@@ -71,7 +71,7 @@ excellent REST-api provider for any PostGreSQL database. We want to get the
 dev-branch for PostGrest hence we need to build it from its Git source.  We
 also need to install PostGre and configure a user and a database.
 
-The output of `dot -Tpng -o deptrack-devops-postgrest.png <( deptrack-devops-example-postgrest dot )`
+The output of `dot -Tpng -o deptrack-devops-example-postgrest.png <( deptrack-devops-example-postgrest dot )`
 is as follows:
 ![graph of deptrack-devops-example-postgrest dependencies](deptrack-devops-example-postgrest.png)
 
@@ -87,6 +87,23 @@ example (I'm currently leaving this for future work).
 This target is a seriously big one. Marvel at the beautiful requirements to
 build and start a virtual machine from scratch.
 
-The output of `dot -Tpng -o deptrack-devops-qemu.png <( deptrack-devops-example-qemu dot )`
+The output of `dot -Tpng -Grankdir=LR -o deptrack-devops-example-qemu.png <( deptrack-devops-example-qemu $HOME/.ssh/authorized_keys dot )`
 is as follows:
 ![graph of deptrack-devops-example-qemu dependencies](deptrack-devops-example-qemu.png)
+
+This graph shows two large chunks: one for the networking, and one for the
+base-image.  The networking part is not really that interesting: we build a
+network with _tap interfaces_, the Haskell type system ensures that the
+definition for a Qemu daemon has some network, and everything follows
+(including, configuring a DHCP, and a DNS server).  The base image is more
+interesting. We use _qemu-nbd_ to provision an empty Qemu disk and we mount it
+locally, then we leverage _debootstrap_ to provision a Ubuntu16.04 environment.
+A working image requires more than just a debootstrap. For instance, the
+debootstraped image will not have a sudo user we can SSH into. Hence, we need
+extra configuration. Rather than creating specific DevOp functions for
+provisioning the image mounted at a specific location, we can use generic DevOp
+functions to provision from within a chroot. When we turnup this example, the
+binary will copy itself into the mounted image, then call itself back using
+_chroot_. This callback mechanism works because this example binary parses
+command line arguments slightly differently from the `defaultMain` (i.e., some
+magic value triggers the codepath for provisioning the chroot),

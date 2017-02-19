@@ -107,7 +107,7 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall self
 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
 bootstrapConfig :: NBDSlot -> BaseImageConfig -> DevOp a -> DevOp a
-bootstrapConfig slot cfg extraConfig= do
+bootstrapConfig slot cfg extraConfig = do
      let login = superUser cfg
      let keys = pubKeys cfg
      let g = group login
