@@ -34,7 +34,6 @@ library
                   , Devops.Downloads
                   , Devops.Git
                   , Devops.Haskell
-                  , Devops.ImageBootstrap
                   , Devops.Linux
                   , Devops.Networking
                   , Devops.Nginx
