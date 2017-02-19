@@ -27,6 +27,7 @@ main = do
 
     chrootNestedSetup :: IO ()
     chrootNestedSetup = do
+        putStrLn "**************************** PREPARING THE CHROOT ******************************"
         defaultMain (bootstrapConfig nbdSlot baseImageConfig imageContent) [optimizeDebianPackages] ["up"]
 
 -- running-vm-related

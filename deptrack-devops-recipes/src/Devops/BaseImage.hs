@@ -3,21 +3,21 @@
 
 module Devops.BaseImage where
 
-import           Control.Monad           (void)
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
-import           Data.Text               (Text)
 import qualified Data.Text               as Text
 import           DepTrack                (declare, inject)
 import           System.FilePath         (makeRelative, (</>))
 
+import           Devops.Base
 import           Devops.Callback
 import           Devops.Debian
 import           Devops.Debian.Commands
 import           Devops.Debian.User
+import           Devops.Debootstrap
 import           Devops.QemuNbd
 import           Devops.Storage
-import           Devops.Base
+import           Devops.Storage.Format
 import           Devops.Utils
 
 data BaseImage = BaseImage {
@@ -31,65 +31,6 @@ data BaseImageConfig = BaseImageConfig {
   , binPath   :: !FilePath -- Path to binary to turnup a new base image.
   , cfgSuite  :: !DebootstrapSuite
   }
-
-newtype Partitioned a = Partitioned a
-newtype Formatted a = Formatted a
-data Debootstrapped = Debootstrapped !DirectoryPresent
-
--- | Partitions an NBD-exported image.
--- TODO: pass partition plan as argument
--- TODO: relax type on NBDExport and work on any block device.
-partitionWithFDisk :: DevOp NBDExport -> DevOp (Partitioned NBDExport)
-partitionWithFDisk mkBlock = devop (Partitioned . fst) mkOp $ do
-    let schema = unlines [ ",512,82"    -- linux swap, 512
-                         , ",,,*"       -- bootable rest
-                         , ""           -- pray
-                         ]
-    blkdev <- mkBlock
-    fdisk <- sfdisk
-    return (blkdev, (schema, fdisk))
-  where
-    mkOp (NBDExport slot _, (schema, fdisk)) =
-        let path = nbdDevicePath slot in
-        buildOp ("partition-ndb:" <> Text.pack path)
-                ("re-partitions a disk")
-                (noCheck)
-                (blindRun fdisk [path, "-D", "-uM"] schema)
-                (noAction)
-                (noAction)
-
-type MB a = a
-data PartitionType = LinuxSwap | Ext2
-
-partition :: DevOp NBDExport -> DevOp (Partitioned NBDExport)
-partition mkBlock = devop (Partitioned . fst) mkOp $ do
-    let schema = [(0, 512, LinuxSwap), (512, 20000, Ext2)] :: [(Int,Int,PartitionType)]
-    blkdev <- mkBlock
-    fdisk <- parted
-    return (blkdev, (schema, fdisk))
-  where
-    mkOp (NBDExport slot _, (schema, fdisk)) =
-        let path = nbdDevicePath slot in
-        buildOp ("partition-ndb:" <> Text.pack path)
-                ("re-partitions a disk using parted")
-                (noCheck)
-                (blindRun fdisk [ path , "mktable" , "msdos" ] "" >>
-                 (void $ traverse (callParted fdisk path) schema))
-                (noAction)
-                (noAction)
-    callParted fdisk path = \case
-        (start, end, LinuxSwap) -> do
-            blindRun fdisk [ "-s" , path , "mkpart", "primary", "linux-swap", show start, show end ] ""
-        (start, end, Ext2) -> do
-            blindRun fdisk [ "-s" , path , "mkpart", "primary", "ext2", show start, show end ] ""
-
--- | Path to the swap partition of the NBD-exported image.
-swapPartitionPath :: Partitioned NBDExport -> FilePath
-swapPartitionPath (Partitioned (NBDExport n _)) = nbdPartitionPath n 1
-
--- | Path to the root partition of the NBD-exported image.
-rootPartitionPath :: Partitioned NBDExport -> FilePath
-rootPartitionPath (Partitioned (NBDExport n _)) = nbdPartitionPath n 2
 
 -- | Formats the NBD-exported image partitions.
 -- TODO: use preferences for the filesystem type.
@@ -109,80 +50,6 @@ formatted mkNbdmount = devop (Formatted . fst) mkOp $ do
                  >> blindRun mkfs [rootPartitionPath blockdev] "")
                 (noAction)
                 (noAction)
-
--- | The configuration for the suite to debootstrap.
--- TODO: push more of the configuration here.
-data DebootstrapSuite =
-    DebootstrapSuite { suiteName :: Name
-                     , kernelPackageName :: Name
-                     , dhcpClientPackageName :: Name
-                     , ethernetAdapterDchpConfig :: DevOp FilePresent
-                     , mirror    :: !Mirror
-                     }
-
-trusty :: DebootstrapSuite
-trusty = DebootstrapSuite "trusty" "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0 ubuntuMirror
-  where
-    eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
-
-xenial :: DebootstrapSuite
-xenial = DebootstrapSuite "xenial" "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3 ubuntuMirror
-  where
-    ens3 = fmap snd $ fileContent "/etc/network/interfaces.d/ens3" (pure ens3IfaceConfig)
-  
-jessie :: DebootstrapSuite
-jessie = DebootstrapSuite "jessie" "linux-image-amd64" "isc-dhcp-client" eth0 debianMirror
-  where
-    eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
-  
--- | A Mirror to debootstrap from.
-newtype Mirror = Mirror { mirrorURL :: Text }
-
-ubuntuMirror :: Mirror
-ubuntuMirror = Mirror "http://archive.ubuntu.com/ubuntu/"
-
-debianMirror :: Mirror
-debianMirror = Mirror "http://httpredir.debian.org/debian/"
-
--- | Debootstraps a distribution in the root partition of an NBD export.
--- Also mounts /dev, /sys, and /proc in the deboostrapped directory.
---
--- TODO: add a "Mounted" type to represent dev/sysfs/tmpfs/etc. mounts
-debootstrapped :: DebootstrapSuite
-  -> FilePath
-  -> DevOp (Formatted (Partitioned NBDExport))
-  -> DevOp Debootstrapped
-debootstrapped suite dirname mkPartitions = devop fst mkOp $ do
-    let args mntdir = [ "--variant", "buildd"
-                      , "--arch", "amd64"
-                      , "--include", "openssh-server,sudo,ntp,libgmp-dev,grub-pc"
-                      , Text.unpack (suiteName suite)
-                      , mntdir
-                      , Text.unpack (mirrorURL $ mirror suite)
-                      ]
-    dir@(DirectoryPresent mntdir) <- directory dirname
-    (Formatted partitions) <- mkPartitions
-    mnt <- mount
-    umnt <- umount
-    dstrap <- debootstrap
-    cr <- chroot
-    return (Debootstrapped dir, (partitions, dstrap, cr, mnt, umnt, mntdir, args))
-  where
-    mkOp (_, (blockdev, dstrap, cr, mnt, umnt, mntdir, args)) =
-        buildOp
-            ("debootstrap")
-            ("unpacks a clean intallation in" <> Text.pack mntdir)
-            (noCheck)
-            (blindRun mnt [rootPartitionPath blockdev, mntdir] ""
-             >> blindRun dstrap (args mntdir) ""
-             >> blindRun mnt ["-o", "bind", "/dev", mntdir </> "dev"] ""
-             >> blindRun cr [mntdir, "mount", "-t", "proc", "none", "/proc"] ""
-             >> blindRun cr [mntdir, "mount", "-t", "sysfs", "none", "/sys"] "")
-            (blindRun cr [mntdir, "umount", "/proc"] ""
-             >> blindRun cr [mntdir, "umount", "/sys"] ""
-             >> blindRun umnt [mntdir </> "dev"] ""
-             >> blindRun umnt [rootPartitionPath blockdev] "")
-            (noAction)
 
 -- | Bootstraps a base image, copying the image after turndown.
 bootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
@@ -294,6 +161,21 @@ ens3IfaceConfig = convertString $ unlines [
   , "iface ens3 inet dhcp"
   ]
 
+trusty :: DebootstrapSuite
+trusty = DebootstrapSuite "trusty" "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0 ubuntuMirror
+  where
+    eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
+
+xenial :: DebootstrapSuite
+xenial = DebootstrapSuite "xenial" "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3 ubuntuMirror
+  where
+    ens3 = fmap snd $ fileContent "/etc/network/interfaces.d/ens3" (pure ens3IfaceConfig)
+  
+jessie :: DebootstrapSuite
+jessie = DebootstrapSuite "jessie" "linux-image-amd64" "isc-dhcp-client" eth0 debianMirror
+  where
+    eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
+  
 -- | Configuration content for the fstab.
 -- TODO: build from a partition schema instead.
 fstab :: FileContent

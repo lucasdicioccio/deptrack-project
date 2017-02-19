@@ -28,6 +28,7 @@ library
                   , Devops.Debian.Packages
                   , Devops.Debian.Repositories
                   , Devops.Debian.User
+                  , Devops.Debootstrap
                   , Devops.Dhcp
                   , Devops.DnsResolver
                   , Devops.Downloads
@@ -50,6 +51,7 @@ library
                   , Devops.StaticSite
                   , Devops.Storage
                   , Devops.Storage.Base
+                  , Devops.Storage.Format
                   , Devops.SysQuery
                   , Devops.Utils
   build-depends:       base >= 4.7 && < 5
