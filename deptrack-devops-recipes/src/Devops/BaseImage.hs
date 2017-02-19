@@ -17,7 +17,6 @@ import           Devops.Debian.User
 import           Devops.Debootstrap
 import           Devops.QemuNbd
 import           Devops.Storage
-import           Devops.Storage.BlockDevice
 import           Devops.Storage.Format
 import           Devops.Utils
 
@@ -32,12 +31,6 @@ data BaseImageConfig = BaseImageConfig {
   , binPath   :: !FilePath -- Path to binary to turnup a new base image.
   , cfgSuite  :: !DebootstrapSuite
   }
-
--- | Formats the NBD-exported image partitions.
--- TODO: use preferences for the filesystem type.
-formatted :: DevOp (Partitioned (BlockDevice NBDExport))
-          -> DevOp (Formatted (Partitioned (BlockDevice NBDExport)))
-formatted = formatDevice
 
 -- | Bootstraps a base image, copying the image after turndown.
 bootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
@@ -73,7 +66,7 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
                         ]
     let nbd = nbdMount slot qcow
     let nbdBlock = fmap nbdDevice nbd
-    let target = formatted (partition schema nbdBlock)
+    let target = formatDevice (partition schema nbdBlock)
     let base = debootstrapped (cfgSuite cfg) dirname target
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath

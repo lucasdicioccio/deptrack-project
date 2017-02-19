@@ -81,3 +81,12 @@ No backups are defined, there are no table creations (and hence Postgrest will
 have nothing to serve). Though, you get the feeling of how to improve this
 example; creating a few tables and views could be a good addition to this
 example (I'm currently leaving this for future work).
+
+# deptrack-devops-example-qemu
+
+This target is a seriously big one. Marvel at the beautiful requirements to
+build and start a virtual machine from scratch.
+
+The output of `dot -Tpng -o deptrack-devops-qemu.png <( deptrack-devops-example-qemu dot )`
+is as follows:
+![graph of deptrack-devops-example-qemu dependencies](deptrack-devops-example-qemu.png)

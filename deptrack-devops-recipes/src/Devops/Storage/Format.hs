@@ -59,33 +59,37 @@ partedFormat = \case
     Ext3      -> "ext2"
 
 type NamedPartition = (Partition, FilePath)
+namedPartitionPath :: NamedPartition -> FilePath
+namedPartitionPath = snd
 
 formatDevice :: DevOp (Partitioned (BlockDevice a))
              -> DevOp (Formatted (Partitioned (BlockDevice a)))
 formatDevice mkdevice = do
     dev <- mkdevice
-    let pairs = f dev
-    _ <- traverse formatPartition pairs
+    let mkParts = traverse f mkdevice
+    _ <- traverse formatPartition mkParts
     return (Formatted dev)
   where
     f :: Partitioned (BlockDevice a) -> [NamedPartition]
     f (Partitioned schema (BlockDevice _ path)) = zip (getPartitions schema) (fmap path [1..])
 
-formatPartition :: NamedPartition -> DevOp (Formatted NamedPartition)
-formatPartition np@(Partition _ _ pType, path) = devop (Formatted) mkOp $ do
+formatPartition :: DevOp NamedPartition -> DevOp (Formatted NamedPartition)
+formatPartition mkPart = devop (Formatted) mkOp $ do
+    np@(Partition _ _ pType, _) <- mkPart
     case pType of
-        LinuxSwap -> formatSwapPartition path >> return np
-        Ext3      -> formatExt3Partition path >> return np
+        LinuxSwap -> formatSwapPartition (namedPartitionPath <$> mkPart)
+        Ext3      -> formatExt3Partition (namedPartitionPath <$> mkPart)
+    return np
   where
-    mkOp _ = runPreOp $
+    mkOp (_,path) = runPreOp $
         noop ("format-partition: " <> Text.pack path)
              ("Formats " <> Text.pack path<> "using the right filesystem")
 
-formatSwapPartition :: FilePath -> DevOp ()
-formatSwapPartition path = devop (const ()) mkOp $ do
-    mkswap
+formatSwapPartition :: DevOp FilePath -> DevOp ()
+formatSwapPartition mkpath = devop (const ()) mkOp $ do
+    (,) <$> mkswap <*> mkpath
   where
-    mkOp swap =
+    mkOp (swap, path) =
         buildOp ("mkswap:" <> Text.pack path)
                 ("makes a fresh swap partition")
                 (noCheck)
@@ -93,11 +97,11 @@ formatSwapPartition path = devop (const ()) mkOp $ do
                 (noAction)
                 (noAction)
 
-formatExt3Partition :: FilePath -> DevOp ()
-formatExt3Partition path = devop (const ()) mkOp $ do
-    mkfsExt3
+formatExt3Partition :: DevOp FilePath -> DevOp ()
+formatExt3Partition mkpath = devop (const ()) mkOp $ do
+    (,) <$> mkfsExt3 <*> mkpath
   where
-    mkOp ext3 =
+    mkOp (ext3, path) =
         buildOp ("mkfs.ext3:" <> Text.pack path)
                 ("makes a fresh ext3 partition")
                 (noCheck)
