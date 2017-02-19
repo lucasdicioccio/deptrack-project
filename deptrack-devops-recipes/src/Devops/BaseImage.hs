@@ -63,6 +63,7 @@ dirtyBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap
           -> DevOp BaseImage
 dirtyBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turnupfileBackup x y))
 
+-- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
 bootstrapWithImageCopyFunction ::
              (FilePath -> DevOp FilePresent -> DevOp FilePresent) -- Specifies a way to copy the image (see usage in bootstrap resp. dirtyBootstrap)
           -> FilePath  -- Path to a temporary dir receiving the debootstrap environment.
@@ -74,6 +75,7 @@ bootstrapWithImageCopyFunction ::
 bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall selfPath selfBootstrapArgs) = do
     let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
     let backedupQcow = QemuImage <$> imgcopy imgpath (fmap getImage qcow)
+
     let src = localRepositoryFile selfPath
     let schema = Schema [ Partition 1   512   LinuxSwap
                         , Partition 512 20000 Ext3
@@ -84,6 +86,7 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall self
     let rootPartition = fmap ((!! 1) . namedPartitions . unFormat) formatted
     let mountedRootPartition = mount rootPartition (directory dirname)
     let base = debootstrapped (cfgSuite cfg) (fmap mountPoint mountedRootPartition)
+
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
     let copy = declare (noop "ready-to-configure" desc1) $ do
@@ -101,7 +104,6 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall self
         (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
         noAction
         noAction
-bootstrapWithImageCopyFunction _ _ _ _ _ NoCallBack = error "TODO: cannot bootstrap with no callback"
 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
 bootstrapConfig :: NBDSlot -> BaseImageConfig -> DevOp a -> DevOp a
