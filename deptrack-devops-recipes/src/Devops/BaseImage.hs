@@ -17,6 +17,7 @@ import           Devops.Debian.User
 import           Devops.Debootstrap
 import           Devops.QemuNbd
 import           Devops.Storage
+import           Devops.Storage.BlockDevice
 import           Devops.Storage.Format
 import           Devops.Utils
 
@@ -34,20 +35,23 @@ data BaseImageConfig = BaseImageConfig {
 
 -- | Formats the NBD-exported image partitions.
 -- TODO: use preferences for the filesystem type.
-formatted :: DevOp (Partitioned NBDExport) -> DevOp (Formatted (Partitioned NBDExport))
-formatted mkNbdmount = devop (Formatted . fst) mkOp $ do
+formatted :: DevOp (Partitioned (BlockDevice NBDExport))
+          -> DevOp NBDExport
+          -> DevOp (Formatted (Partitioned (BlockDevice NBDExport)))
+formatted mkNbdMount mkExport = devop (Formatted . fst) mkOp $ do
     swap <- mkswap
     mkfs <- mkfsExt3
-    blockdev@(Partitioned (NBDExport slot _)) <- mkNbdmount
-    return (blockdev, (slot,swap,mkfs))
+    export@(NBDExport slot _) <- mkExport
+    blockdev <- mkNbdMount
+    return (blockdev, (export,slot,swap,mkfs))
   where
-    mkOp (blockdev, (slot,swap,mkfs)) =
+    mkOp (_, (export,slot,swap,mkfs)) =
         let path = nbdDevicePath slot in
         buildOp ("format-nbd:" <> Text.pack path)
-                ("re-formats a disk")
+                ("re-formats a disk partitions")
                 (noCheck)
-                (blindRun swap [swapPartitionPath blockdev] ""
-                 >> blindRun mkfs [rootPartitionPath blockdev] "")
+                (blindRun swap [swapPartitionPath export] ""
+                 >> blindRun mkfs [rootPartitionPath export] "")
                 (noAction)
                 (noAction)
 
@@ -80,7 +84,13 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
     let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
     let backedupQcow = QemuImage <$> store imgpath (fmap getImage qcow)
     let src = localRepositoryFile selfPath
-    let base = debootstrapped (cfgSuite cfg) dirname (formatted (partition (nbdMount slot qcow)))
+    let schema = Schema [ Partition 0   512   LinuxSwap
+                        , Partition 512 20000 Ext2
+                        ]
+    let nbd = nbdMount slot qcow
+    let nbdBlock = fmap nbdDevice nbd
+    let target = formatted (partition schema nbdBlock) nbd
+    let base = debootstrapped (cfgSuite cfg) dirname target
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
     let copy = declare (noop "ready-to-configure" desc1) $ do
@@ -199,3 +209,11 @@ sudoers = convertString $ unlines [
  , "%admin ALL=(ALL) ALL"
  , "%sudo   ALL=(ALL) NOPASSWD:ALL"
  ]
+
+-- | Path to the swap partition of the NBD-exported image.
+swapPartitionPath :: NBDExport -> FilePath
+swapPartitionPath (NBDExport n _) = nbdPartitionPath n 1
+
+-- | Path to the root partition of the NBD-exported image.
+rootPartitionPath :: NBDExport -> FilePath
+rootPartitionPath (NBDExport n _) = nbdPartitionPath n 2

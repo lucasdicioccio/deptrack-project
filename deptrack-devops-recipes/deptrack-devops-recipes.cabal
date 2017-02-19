@@ -51,6 +51,7 @@ library
                   , Devops.StaticSite
                   , Devops.Storage
                   , Devops.Storage.Base
+                  , Devops.Storage.BlockDevice
                   , Devops.Storage.Format
                   , Devops.SysQuery
                   , Devops.Utils

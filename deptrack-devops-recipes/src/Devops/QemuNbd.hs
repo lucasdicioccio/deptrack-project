@@ -8,6 +8,7 @@ import qualified Data.Text              as Text
 import           Devops.Debian.Commands
 import           Devops.Linux           (kernelmodule)
 import           Devops.Storage
+import           Devops.Storage.BlockDevice
 import           Devops.Base
 import           Devops.Utils
 
@@ -49,3 +50,7 @@ nbdDevicePath n = "/dev/nbd" <> show n -- decimal no trailing zero
 -- | Computes the block-device path for a given NBD device partition.
 nbdPartitionPath :: NBDSlot -> NBDPartitionSlot -> FilePath
 nbdPartitionPath n p = nbdDevicePath n <> "p" <> show p
+
+-- | Computes the block-device object from a given NBD Export.
+nbdDevice :: NBDExport -> BlockDevice NBDExport
+nbdDevice (NBDExport slot _) = BlockDevice $ nbdDevicePath slot
