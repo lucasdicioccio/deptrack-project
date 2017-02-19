@@ -12,12 +12,13 @@ import           System.FilePath         (makeRelative, (</>))
 import           Devops.Base
 import           Devops.Callback
 import           Devops.Debian
-import           Devops.Debian.Commands
+import qualified Devops.Debian.Commands as Cmd
 import           Devops.Debian.User
 import           Devops.Debootstrap
 import           Devops.QemuNbd
 import           Devops.Storage
 import           Devops.Storage.Format
+import           Devops.Storage.Mount
 import           Devops.Utils
 
 data BaseImage = BaseImage {
@@ -66,8 +67,9 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
                         ]
     let nbd = nbdMount slot qcow
     let nbdBlock = fmap nbdDevice nbd
-    let target = formatDevice (partition schema nbdBlock)
-    let base = debootstrapped (cfgSuite cfg) dirname target
+    let formatted = formatDevice (partition schema nbdBlock)
+    let rootPartition = fmap (head . namedPartitions . unFormat) formatted
+    let base = debootstrapped (cfgSuite cfg) dirname (mount rootPartition (return dirname))
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
     let copy = declare (noop "ready-to-configure" desc1) $ do
@@ -75,14 +77,14 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
     let main = devop fst mkOp $ do
           (Debootstrapped (DirectoryPresent mntPath)) <- base
           _ <- copy
-          cr <- chroot
-          return (BaseImage (FilePresent imgpath) cfg, (cr,mntPath))
+          chroot <- Cmd.chroot
+          return (BaseImage (FilePresent imgpath) cfg, (chroot,mntPath))
     fmap snd (backedupQcow `inject` main)
   where
-    mkOp (_,(cr,mntPath)) = buildOp
+    mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")
         noCheck
-        (blindRun cr ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
+        (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
         noAction
         noAction
 bootstrapWithStore _ _ _ _ _ NoCallBack = error "TODO: cannot bootstrap with no callback"
@@ -112,18 +114,18 @@ bootstrapConfig slot cfg extraConfig= do
 -- | Setups grub on the NBD device from the chroot and fixes grub.cfg
 grubSetup :: NBDSlot -> DevOp ()
 grubSetup slot = devop (const ()) mkOp $ do
-    gi <- grubInstall
-    ug <- updateGrub
+    grubInstal <- Cmd.grubInstall
+    updateGrub <- Cmd.updateGrub
     let path = nbdDevicePath slot
     let rootpath = nbdPartitionPath slot 2
-    return (gi, ug, path, rootpath)
+    return (grubInstal, updateGrub, path, rootpath)
   where
-    mkOp (gi,ug,path, rootpath) =
+    mkOp (grubInstall,updateGrub,path, rootpath) =
         buildOp ("setup-grub")
                 ("dirty grub setup from a chroot")
                 (noCheck)
-                (blindRun gi ["--recheck", path] ""
-                 >> blindRun ug [] ""
+                (blindRun grubInstall ["--recheck", path] ""
+                 >> blindRun updateGrub [] ""
                  >> replaceInFile "/boot/grub/grub.cfg" (Text.pack rootpath) "/dev/sda2")
                 (noAction)
                 (noAction)

@@ -18,7 +18,7 @@ data Partitioned a = Partitioned {
     , unPartition :: a
     }
 
-newtype Formatted a = Formatted a
+newtype Formatted a = Formatted { unFormat :: a }
 
 type MB a = a
 data PartitionType = LinuxSwap | Ext3
@@ -66,12 +66,13 @@ formatDevice :: DevOp (Partitioned (BlockDevice a))
              -> DevOp (Formatted (Partitioned (BlockDevice a)))
 formatDevice mkdevice = do
     dev <- mkdevice
-    let mkParts = traverse f mkdevice
+    let mkParts = traverse namedPartitions mkdevice
     _ <- traverse formatPartition mkParts
     return (Formatted dev)
-  where
-    f :: Partitioned (BlockDevice a) -> [NamedPartition]
-    f (Partitioned schema (BlockDevice _ path)) = zip (getPartitions schema) (fmap path [1..])
+  
+namedPartitions :: Partitioned (BlockDevice a) -> [NamedPartition]
+namedPartitions (Partitioned schema (BlockDevice _ path)) =
+    zip (getPartitions schema) (fmap path [1..])
 
 formatPartition :: DevOp NamedPartition -> DevOp (Formatted NamedPartition)
 formatPartition mkPart = devop (Formatted) mkOp $ do

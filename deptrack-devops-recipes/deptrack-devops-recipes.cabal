@@ -53,6 +53,7 @@ library
                   , Devops.Storage.Base
                   , Devops.Storage.BlockDevice
                   , Devops.Storage.Format
+                  , Devops.Storage.Mount
                   , Devops.SysQuery
                   , Devops.Utils
   build-depends:       base >= 4.7 && < 5
