@@ -69,7 +69,8 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
     let nbdBlock = fmap nbdDevice nbd
     let formatted = formatDevice (partition schema nbdBlock)
     let rootPartition = fmap (head . namedPartitions . unFormat) formatted
-    let base = debootstrapped (cfgSuite cfg) (mount rootPartition (directory dirname))
+    let mountedRootPartition = mount rootPartition (directory dirname)
+    let base = debootstrapped (cfgSuite cfg) (fmap mountPoint mountedRootPartition)
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
     let copy = declare (noop "ready-to-configure" desc1) $ do

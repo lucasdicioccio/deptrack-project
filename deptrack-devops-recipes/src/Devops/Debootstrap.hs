@@ -10,7 +10,6 @@ import           System.FilePath         ((</>))
 import           Devops.Base
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Storage
-import           Devops.Storage.Mount
 import           Devops.Utils
 
 data Debootstrapped = Debootstrapped !DirectoryPresent
@@ -34,12 +33,10 @@ ubuntuMirror = Mirror "http://archive.ubuntu.com/ubuntu/"
 debianMirror :: Mirror
 debianMirror = Mirror "http://httpredir.debian.org/debian/"
 
-type DebootstrapTarget a = MountedPartition
-
 -- | Debootstraps a distribution in the root partition of an NBD export.
 -- Also mounts /dev, /sys, and /proc in the deboostrapped directory.
 debootstrapped :: DebootstrapSuite
-  -> DevOp (DebootstrapTarget a)
+  -> DevOp DirectoryPresent
   -> DevOp Debootstrapped
 debootstrapped suite mkTarget = devop fst mkOp $ do
     let args mntdir = [ "--variant", "buildd"
@@ -49,7 +46,7 @@ debootstrapped suite mkTarget = devop fst mkOp $ do
                       , mntdir
                       , Text.unpack (mirrorURL $ mirror suite)
                       ]
-    dir@(DirectoryPresent mntdir) <- fmap mountPoint mkTarget
+    dir@(DirectoryPresent mntdir) <- mkTarget
     mnt <- Cmd.mount
     umnt <- Cmd.umount
     dstrap <- Cmd.debootstrap
