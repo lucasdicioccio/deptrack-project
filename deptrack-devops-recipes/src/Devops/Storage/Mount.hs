@@ -12,7 +12,7 @@ import           Devops.Storage.Format hiding (partition)
 import           Devops.Utils
 
 data MountedPartition = MountedPartition {
-    mountPoint       :: FilePath
+    mountPoint       :: DirectoryPresent
   , mountedPartition :: NamedPartition
   }
 
@@ -21,12 +21,12 @@ mount :: DevOp NamedPartition
       -> DevOp MountedPartition
 mount mkpart mkdir = devop fst mkOp $ do
     part <- mkpart
-    (DirectoryPresent mntdir) <- mkdir
+    dir@(DirectoryPresent mntdir) <- mkdir
     mnt  <- Cmd.mount
     umnt <- Cmd.umount
-    return $ (MountedPartition mntdir part, (mnt, umnt))
+    return $ (MountedPartition dir part, (mntdir, mnt, umnt))
   where
-    mkOp (MountedPartition mntdir (_, devpath), (mnt, umnt)) =
+    mkOp (MountedPartition _ (_, devpath), (mntdir, mnt, umnt)) =
         buildOp ("mount: " <> Text.pack mntdir)
                 ("Mounts" <> Text.pack devpath <> " on " <> Text.pack mntdir)
                 noCheck

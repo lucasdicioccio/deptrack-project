@@ -39,10 +39,9 @@ type DebootstrapTarget a = MountedPartition
 -- | Debootstraps a distribution in the root partition of an NBD export.
 -- Also mounts /dev, /sys, and /proc in the deboostrapped directory.
 debootstrapped :: DebootstrapSuite
-  -> FilePath
   -> DevOp (DebootstrapTarget a)
   -> DevOp Debootstrapped
-debootstrapped suite dirname mkTarget = devop fst mkOp $ do
+debootstrapped suite mkTarget = devop fst mkOp $ do
     let args mntdir = [ "--variant", "buildd"
                       , "--arch", "amd64"
                       , "--include", "openssh-server,sudo,ntp,libgmp-dev,grub-pc"
@@ -50,8 +49,7 @@ debootstrapped suite dirname mkTarget = devop fst mkOp $ do
                       , mntdir
                       , Text.unpack (mirrorURL $ mirror suite)
                       ]
-    dir@(DirectoryPresent mntdir) <- directory dirname
-    _ <- mkTarget
+    dir@(DirectoryPresent mntdir) <- fmap mountPoint mkTarget
     mnt <- Cmd.mount
     umnt <- Cmd.umount
     dstrap <- Cmd.debootstrap
