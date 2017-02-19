@@ -62,7 +62,7 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
     let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
     let backedupQcow = QemuImage <$> store imgpath (fmap getImage qcow)
     let src = localRepositoryFile selfPath
-    let schema = Schema [ Partition 0   512   LinuxSwap
+    let schema = Schema [ Partition 1   512   LinuxSwap
                         , Partition 512 20000 Ext3
                         ]
     let nbd = nbdMount slot qcow
