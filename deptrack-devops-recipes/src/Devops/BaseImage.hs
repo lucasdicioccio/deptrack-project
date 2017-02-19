@@ -34,33 +34,46 @@ data BaseImageConfig = BaseImageConfig {
   }
 
 -- | Bootstraps a base image, copying the image after turndown.
-bootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
+--
+-- This method is safer than dirtyBootstrap because it will force users to
+-- release all temporary resources (i.e., after a full-cycle for
+-- turnup/turndown).
+synchedBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> BaseImageConfig  -- Configuration of the base image.
           -> CallBackMethod
           -> DevOp BaseImage
-bootstrap = bootstrapWithStore (\x y -> fmap snd (turndownfileBackup x y))
+synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfileBackup x y))
 
 -- | Bootstraps a base image, copying the image after turnup.
+--
+-- This method is not really safe to build a base image because it will copy
+-- the base image content with no guarantee that NBD flushed everything and
+-- while its filesystem is mounted.
+--
+-- You should only use this method to impress your friends or when you know
+-- what you're doing (the library author is in the former situation, not the
+-- latter).
 dirtyBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> BaseImageConfig  -- Configuration of the base image.
           -> CallBackMethod
           -> DevOp BaseImage
-dirtyBootstrap = bootstrapWithStore (\x y -> fmap snd (turnupfileBackup x y))
+dirtyBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turnupfileBackup x y))
 
-bootstrapWithStore :: (FilePath -> DevOp FilePresent -> DevOp FilePresent)
+bootstrapWithImageCopyFunction ::
+             (FilePath -> DevOp FilePresent -> DevOp FilePresent) -- Specifies a way to copy the image (see usage in bootstrap resp. dirtyBootstrap)
           -> FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> BaseImageConfig  -- Configuration of the base image.
           -> CallBackMethod
           -> DevOp BaseImage
-bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBootstrapArgs) = do
+bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall selfPath selfBootstrapArgs) = do
     let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
-    let backedupQcow = QemuImage <$> store imgpath (fmap getImage qcow)
+    let backedupQcow = QemuImage <$> imgcopy imgpath (fmap getImage qcow)
     let src = localRepositoryFile selfPath
     let schema = Schema [ Partition 1   512   LinuxSwap
                         , Partition 512 20000 Ext3
@@ -88,7 +101,7 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
         (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
         noAction
         noAction
-bootstrapWithStore _ _ _ _ _ NoCallBack = error "TODO: cannot bootstrap with no callback"
+bootstrapWithImageCopyFunction _ _ _ _ _ NoCallBack = error "TODO: cannot bootstrap with no callback"
 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
 bootstrapConfig :: NBDSlot -> BaseImageConfig -> DevOp a -> DevOp a
