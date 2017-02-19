@@ -53,4 +53,7 @@ nbdPartitionPath n p = nbdDevicePath n <> "p" <> show p
 
 -- | Computes the block-device object from a given NBD Export.
 nbdDevice :: NBDExport -> BlockDevice NBDExport
-nbdDevice (NBDExport slot _) = BlockDevice $ nbdDevicePath slot
+nbdDevice (NBDExport slot _) = BlockDevice (nbdDevicePath slot) f
+  where
+    f :: NBDPartitionSlot -> FilePath
+    f = nbdPartitionPath slot

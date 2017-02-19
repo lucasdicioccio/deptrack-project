@@ -35,8 +35,6 @@ ubuntuMirror = Mirror "http://archive.ubuntu.com/ubuntu/"
 debianMirror :: Mirror
 debianMirror = Mirror "http://httpredir.debian.org/debian/"
 
-newtype Formatted a = Formatted a
-
 -- | TODO:
 --  * explain
 --  * add wrapping type forcing to mount the partition
@@ -61,7 +59,7 @@ debootstrapped suite dirname mkTarget = devop fst mkOp $ do
                       , Text.unpack (mirrorURL $ mirror suite)
                       ]
     dir@(DirectoryPresent mntdir) <- directory dirname
-    (Formatted (Partitioned blkdev)) <- mkTarget
+    (Formatted (Partitioned _ blkdev)) <- mkTarget
     mnt <- mount
     umnt <- umount
     dstrap <- debootstrap

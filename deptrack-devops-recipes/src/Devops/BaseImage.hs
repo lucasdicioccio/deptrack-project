@@ -36,24 +36,8 @@ data BaseImageConfig = BaseImageConfig {
 -- | Formats the NBD-exported image partitions.
 -- TODO: use preferences for the filesystem type.
 formatted :: DevOp (Partitioned (BlockDevice NBDExport))
-          -> DevOp NBDExport
           -> DevOp (Formatted (Partitioned (BlockDevice NBDExport)))
-formatted mkNbdMount mkExport = devop (Formatted . fst) mkOp $ do
-    swap <- mkswap
-    mkfs <- mkfsExt3
-    export@(NBDExport slot _) <- mkExport
-    blockdev <- mkNbdMount
-    return (blockdev, (export,slot,swap,mkfs))
-  where
-    mkOp (_, (export,slot,swap,mkfs)) =
-        let path = nbdDevicePath slot in
-        buildOp ("format-nbd:" <> Text.pack path)
-                ("re-formats a disk partitions")
-                (noCheck)
-                (blindRun swap [swapPartitionPath export] ""
-                 >> blindRun mkfs [rootPartitionPath export] "")
-                (noAction)
-                (noAction)
+formatted = formatDevice
 
 -- | Bootstraps a base image, copying the image after turndown.
 bootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
@@ -85,11 +69,11 @@ bootstrapWithStore store dirname imgpath slot cfg (BinaryCall selfPath selfBoots
     let backedupQcow = QemuImage <$> store imgpath (fmap getImage qcow)
     let src = localRepositoryFile selfPath
     let schema = Schema [ Partition 0   512   LinuxSwap
-                        , Partition 512 20000 Ext2
+                        , Partition 512 20000 Ext3
                         ]
     let nbd = nbdMount slot qcow
     let nbdBlock = fmap nbdDevice nbd
-    let target = formatted (partition schema nbdBlock) nbd
+    let target = formatted (partition schema nbdBlock)
     let base = debootstrapped (cfgSuite cfg) dirname target
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
@@ -209,11 +193,3 @@ sudoers = convertString $ unlines [
  , "%admin ALL=(ALL) ALL"
  , "%sudo   ALL=(ALL) NOPASSWD:ALL"
  ]
-
--- | Path to the swap partition of the NBD-exported image.
-swapPartitionPath :: NBDExport -> FilePath
-swapPartitionPath (NBDExport n _) = nbdPartitionPath n 1
-
--- | Path to the root partition of the NBD-exported image.
-rootPartitionPath :: NBDExport -> FilePath
-rootPartitionPath (NBDExport n _) = nbdPartitionPath n 2
