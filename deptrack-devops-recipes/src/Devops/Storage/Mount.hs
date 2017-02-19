@@ -7,6 +7,7 @@ import qualified Data.Text               as Text
 
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Base
+import           Devops.Storage
 import           Devops.Storage.Format hiding (partition)
 import           Devops.Utils
 
@@ -16,11 +17,11 @@ data MountedPartition = MountedPartition {
   }
 
 mount :: DevOp NamedPartition
-      -> DevOp FilePath
+      -> DevOp DirectoryPresent
       -> DevOp MountedPartition
-mount mkpart mkpath = devop fst mkOp $ do
+mount mkpart mkdir = devop fst mkOp $ do
     part <- mkpart
-    mntdir <- mkpath
+    (DirectoryPresent mntdir) <- mkdir
     mnt  <- Cmd.mount
     umnt <- Cmd.umount
     return $ (MountedPartition mntdir part, (mnt, umnt))
