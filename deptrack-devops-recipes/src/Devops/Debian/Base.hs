@@ -7,9 +7,9 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
 module Devops.Debian.Base (
-    DebianPackagesSet(..)
+    DebianPackagesSet(..) , opFromPackagesSet
   , aptGetKeys , DebianRepository (..)
-  , DebianPackage (..) , debianPackage , deb , generalDebianPackage , installedWith
+  , DebianPackage (..) , debianPackage , deb , unoptimizableDeb, generalDebianPackage , installedWith
   -- experimental
   , postInstallHook
   , sudoRunAsInDir
@@ -31,7 +31,7 @@ import           Devops.Utils
 
 data DebianPackage (a :: Symbol) = DebianPackage !Name
 newtype DebianPackagesSet = DebianPackagesSet (Set Name)
-  deriving Monoid
+    deriving Monoid
 
 installedWith :: DevOp (Binary c) -> DevOp (DebianPackage a) -> DevOp (Binary c)
 b `installedWith` pkg = pkg *> b -- works because binary is generally pure
@@ -46,23 +46,35 @@ instance HasBinary (DebianPackage "apt") "apt-key" where
 
 debianPackage :: (KnownSymbol a) => DevOp (DebianPackage a)
 debianPackage = f Proxy
-  where f :: (KnownSymbol a) => Proxy a -> DevOp (DebianPackage a)
-        f proxy = deb (Text.pack (symbolVal proxy))
+  where
+    f :: (KnownSymbol a) => Proxy a -> DevOp (DebianPackage a)
+    f proxy = deb (Text.pack (symbolVal proxy))
 
 generalDebianPackage :: Name -> DevOp DebianRepository -> DevOp (DebianPackage a)
 generalDebianPackage n repo = fmap snd $ track mkOp $ do
-        aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
-        _ <- repo
-        return (aptGet, DebianPackage n)
-  where mkOp (b,_) = rawpreop (DebianPackagesSet $ Set.singleton n)
-                           (opFromPackagesSet b)
+    aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
+    _ <- repo
+    return (aptGet, DebianPackage n)
+  where
+    mkOp (b,_) = rawpreop (DebianPackagesSet $ Set.singleton n)
+                          (opFromPackagesSet b)
 
 deb :: Name -> DevOp (DebianPackage a)
 deb n = fmap snd $ track mkOp $ do
-        aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
-        return (aptGet, DebianPackage n)
-  where mkOp (b,_) = rawpreop (DebianPackagesSet $ Set.singleton n)
-                           (opFromPackagesSet b)
+    aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
+    return (aptGet, DebianPackage n)
+  where
+    mkOp (b,_) = rawpreop (DebianPackagesSet $ Set.singleton n)
+                          (opFromPackagesSet b)
+
+-- | TODO: find a better way to layer debianpackages in "layers" at different
+-- dependency levels (e.g., by indexing depth, maybe at type level)
+unoptimizableDeb :: Name -> DevOp (DebianPackage a)
+unoptimizableDeb n = fmap snd $ track mkOp $ do
+    aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
+    return (aptGet, DebianPackage n)
+  where
+    mkOp (b,_) = rawpreop (()) (const $ opFromPackagesSet b $ DebianPackagesSet $ Set.singleton n)
 
 opFromPackagesSet :: Binary "apt-get" -> DebianPackagesSet -> Op
 opFromPackagesSet b (DebianPackagesSet pkgs) =
@@ -92,7 +104,7 @@ sudoBin = bin "/usr/bin/sudo"
 -- todo: DirectoryPresent, use User, Group
 sudoRunAsInDir :: Binary x -> FilePath -> (Name, Name) -> [String] -> String -> IO ()
 sudoRunAsInDir (Binary x) dir (user,group) args input =
-  blindRunInDir sudoBin dir (["-E", "-g", Text.unpack group, "-u", Text.unpack user , "--", x] ++ args) input
+    blindRunInDir sudoBin dir (["-E", "-g", Text.unpack group, "-u", Text.unpack user , "--", x] ++ args) input
 
 aptGetKeys :: KeyServerHostName -> KeyID -> DevOp (AptGetKey)
 aptGetKeys hostname fingerprint = devop snd mkOp $ do
