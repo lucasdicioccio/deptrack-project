@@ -23,7 +23,6 @@ import           Devops.Utils
 
 data BaseImage = BaseImage {
     imagePath :: !FilePresent
-  , imageSize :: !(GB Size)
   , config    :: !BaseImageConfig
   }
 data BaseImageConfig = BaseImageConfig {
@@ -87,17 +86,16 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     let mountedRootPartition = mount rootPartition (directory dirname)
     let bootstrapdir = fmap mountPoint mountedRootPartition
 
-    let boot = bootstrap imgpath bootstrapdir cfg size cb
+    let boot = bootstrap imgpath bootstrapdir cfg cb
     fmap snd (backedupQcow `inject` boot)
 
 -- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
 bootstrap :: FilePath                 -- Path receiving the qemu image.
           -> DevOp DirectoryPresent   -- directory receiving the debootstrap environment
           -> BaseImageConfig          -- Configuration of the base image.
-          -> GB Size
           -> CallBackMethod
           -> DevOp BaseImage
-bootstrap imgpath bootstrapdir cfg size (BinaryCall selfPath selfBootstrapArgs) = devop fst mkOp $ do
+bootstrap imgpath bootstrapdir cfg (BinaryCall selfPath selfBootstrapArgs) = devop fst mkOp $ do
     let src = localRepositoryFile selfPath
     let base = debootstrapped (cfgSuite cfg) bootstrapdir
 
@@ -107,7 +105,7 @@ bootstrap imgpath bootstrapdir cfg size (BinaryCall selfPath selfBootstrapArgs) 
     _ <- declare (noop "ready-to-configure" desc1) $ do
         fileCopy (makeDestPath <$> base) src
     chroot <- Cmd.chroot
-    return (BaseImage (FilePresent imgpath) size cfg, (chroot, mntPath))
+    return (BaseImage (FilePresent imgpath) cfg, (chroot, mntPath))
   where
     mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")
