@@ -59,6 +59,7 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
                                savedImagePath
                                nbdSlot
                                (baseImageConfig pubkeys)
+                               imgSize
                                callback
 
     callback :: CallBackMethod
@@ -66,7 +67,7 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
 
 baseImageConfig :: PubkeyContent -> BaseImageConfig
 baseImageConfig pubkeys =
-    BaseImageConfig imgSuperUser imgSize pubkeys bootstrapBin xenial
+    BaseImageConfig imgSuperUser pubkeys bootstrapBin xenial
 
 imageContent :: DevOp ()
 imageContent = return ()

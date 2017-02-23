@@ -23,11 +23,11 @@ import           Devops.Utils
 
 data BaseImage = BaseImage {
     imagePath :: !FilePresent
+  , imageSize :: !(GB Size)
   , config    :: !BaseImageConfig
   }
 data BaseImageConfig = BaseImageConfig {
     superUser :: !Name
-  , imageSize :: !(GB Size)
   , pubKeys   :: !FileContent
   , binPath   :: !FilePath -- Path to binary to turnup a new base image.
   , cfgSuite  :: !DebootstrapSuite
@@ -42,6 +42,7 @@ synchedBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstr
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> BaseImageConfig  -- Configuration of the base image.
+          -> GB Size
           -> CallBackMethod
           -> DevOp BaseImage
 synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfileBackup x y))
@@ -59,24 +60,23 @@ dirtyBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> BaseImageConfig  -- Configuration of the base image.
+          -> GB Size
           -> CallBackMethod
           -> DevOp BaseImage
 dirtyBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turnupfileBackup x y))
 
--- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
 bootstrapWithImageCopyFunction ::
              (FilePath -> DevOp FilePresent -> DevOp FilePresent) -- Specifies a way to copy the image (see usage in bootstrap resp. dirtyBootstrap)
           -> FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> BaseImageConfig  -- Configuration of the base image.
+          -> GB Size
           -> CallBackMethod
           -> DevOp BaseImage
-bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall selfPath selfBootstrapArgs) = do
-    let qcow = qcow2Image (imgpath <> ".tmp") (imageSize cfg)
+bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
+    let qcow = qcow2Image (imgpath <> ".tmp") size
     let backedupQcow = QemuImage <$> imgcopy imgpath (fmap getImage qcow)
-
-    let src = localRepositoryFile selfPath
     let schema = Schema [ Partition 1   512   LinuxSwap
                         , Partition 512 20000 Ext3
                         ]
@@ -85,7 +85,22 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall self
     let formatted = formatDevice (partition schema nbdBlock)
     let rootPartition = fmap ((!! 1) . namedPartitions . unFormat) formatted
     let mountedRootPartition = mount rootPartition (directory dirname)
-    let base = debootstrapped (cfgSuite cfg) (fmap mountPoint mountedRootPartition)
+    let foodir = fmap mountPoint mountedRootPartition
+    bootstrapWithImageCopyFunction' backedupQcow imgpath foodir cfg size cb
+
+-- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
+bootstrapWithImageCopyFunction' ::
+             (DevOp a)
+          -> FilePath  -- Path receiving the qemu image.
+          -> DevOp DirectoryPresent   -- directory receiving the debootstrap environment
+          -> BaseImageConfig  -- Configuration of the base image.
+          -> GB Size
+          -> CallBackMethod
+          -> DevOp BaseImage
+bootstrapWithImageCopyFunction' ret imgpath bootstrapdir cfg size (BinaryCall selfPath selfBootstrapArgs) = do
+
+    let src = localRepositoryFile selfPath
+    let base = debootstrapped (cfgSuite cfg) bootstrapdir
 
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
@@ -95,8 +110,8 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg (BinaryCall self
           (Debootstrapped (DirectoryPresent mntPath)) <- base
           _ <- copy
           chroot <- Cmd.chroot
-          return (BaseImage (FilePresent imgpath) cfg, (chroot,mntPath))
-    fmap snd (backedupQcow `inject` main)
+          return (BaseImage (FilePresent imgpath) size cfg, (chroot,mntPath))
+    fmap snd (ret `inject` main)
   where
     mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")

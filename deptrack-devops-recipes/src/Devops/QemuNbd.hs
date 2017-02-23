@@ -23,25 +23,25 @@ newtype QemuImage = QemuImage { getImage :: FilePresent }
 -- | Creates a new QCOW2 image of a given size.
 qcow2Image :: FilePath -> GB Size -> DevOp QemuImage
 qcow2Image path gb = do
-  let args = pure ["create", "-f", "qcow2", path, show gb <> "G"]
-  (_,_,x) <- generatedFile path qemuImg args
-  return (QemuImage x)
+    let args = pure ["create", "-f", "qcow2", path, show gb <> "G"]
+    (_,_,x) <- generatedFile path qemuImg args
+    return (QemuImage x)
 
 -- | Uses qemu-nbd to export and image on a given slot.
 nbdMount :: NBDSlot -> DevOp QemuImage -> DevOp NBDExport
 nbdMount slot mkImg = devop (NBDExport slot . fst) mkOp $ do
-  _ <- kernelmodule "nbd" [("max_part","8")]
-  img <- mkImg
-  q <- qemuNbd
-  return (img, q)
-
-  where mkOp (QemuImage (FilePresent imagePath), q) =
-                       buildOp ("qemu-nbd-mount: " <> Text.pack imagePath)
-                               ("mounts a qemu image with nbd at " <> Text.pack (nbdDevicePath slot))
-                               (noCheck)
-                               (blindRun q ["-c", nbdDevicePath slot, imagePath] "")
-                               (blindRun q ["-d", nbdDevicePath slot] "")
-                               (noAction)
+    _ <- kernelmodule "nbd" [("max_part","8")]
+    img <- mkImg
+    q <- qemuNbd
+    return (img, q)
+  where
+    mkOp (QemuImage (FilePresent imagePath), q) =
+        buildOp ("qemu-nbd-mount: " <> Text.pack imagePath)
+                ("mounts a qemu image with nbd at " <> Text.pack (nbdDevicePath slot))
+                (noCheck)
+                (blindRun q ["-c", nbdDevicePath slot, imagePath] "")
+                (blindRun q ["-d", nbdDevicePath slot] "")
+                (noAction)
 
 -- | Computes the block-device path for a given NBD device slot.
 nbdDevicePath :: NBDSlot -> FilePath
