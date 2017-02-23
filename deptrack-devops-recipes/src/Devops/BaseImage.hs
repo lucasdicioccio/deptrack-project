@@ -85,33 +85,29 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     let formatted = formatDevice (partition schema nbdBlock)
     let rootPartition = fmap ((!! 1) . namedPartitions . unFormat) formatted
     let mountedRootPartition = mount rootPartition (directory dirname)
-    let foodir = fmap mountPoint mountedRootPartition
-    bootstrapWithImageCopyFunction' backedupQcow imgpath foodir cfg size cb
+    let bootstrapdir = fmap mountPoint mountedRootPartition
+
+    let boot = bootstrap imgpath bootstrapdir cfg size cb
+    fmap snd (backedupQcow `inject` boot)
 
 -- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
-bootstrapWithImageCopyFunction' ::
-             (DevOp a)
-          -> FilePath  -- Path receiving the qemu image.
+bootstrap :: FilePath                 -- Path receiving the qemu image.
           -> DevOp DirectoryPresent   -- directory receiving the debootstrap environment
-          -> BaseImageConfig  -- Configuration of the base image.
+          -> BaseImageConfig          -- Configuration of the base image.
           -> GB Size
           -> CallBackMethod
           -> DevOp BaseImage
-bootstrapWithImageCopyFunction' ret imgpath bootstrapdir cfg size (BinaryCall selfPath selfBootstrapArgs) = do
-
+bootstrap imgpath bootstrapdir cfg size (BinaryCall selfPath selfBootstrapArgs) = devop fst mkOp $ do
     let src = localRepositoryFile selfPath
     let base = debootstrapped (cfgSuite cfg) bootstrapdir
 
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
-    let desc1 = "copies " <> Text.pack selfPath <> " in config chroot for " <> Text.pack imgpath
-    let copy = declare (noop "ready-to-configure" desc1) $ do
-                 fileCopy (makeDestPath <$> base) src
-    let main = devop fst mkOp $ do
-          (Debootstrapped (DirectoryPresent mntPath)) <- base
-          _ <- copy
-          chroot <- Cmd.chroot
-          return (BaseImage (FilePresent imgpath) size cfg, (chroot,mntPath))
-    fmap snd (ret `inject` main)
+    let desc1 = "copies " <> Text.pack selfPath <> " in debootstrapped dir for " <> Text.pack imgpath
+    (Debootstrapped (DirectoryPresent mntPath)) <- base
+    _ <- declare (noop "ready-to-configure" desc1) $ do
+        fileCopy (makeDestPath <$> base) src
+    chroot <- Cmd.chroot
+    return (BaseImage (FilePresent imgpath) size cfg, (chroot, mntPath))
   where
     mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")
