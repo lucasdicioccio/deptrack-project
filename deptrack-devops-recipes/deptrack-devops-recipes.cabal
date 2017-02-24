@@ -43,6 +43,7 @@ library
                   , Devops.Postgre
                   , Devops.Python
                   , Devops.Qemu
+                  , Devops.QemuBootstrap
                   , Devops.QemuNbd
                   , Devops.R
                   , Devops.Ref

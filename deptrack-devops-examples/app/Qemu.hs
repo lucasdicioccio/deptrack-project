@@ -10,6 +10,7 @@ import           Devops.Cli (defaultMain)
 import           Devops.Optimize (optimizeDebianPackages)
 import           Devops.Networking
 import           Devops.Qemu
+import           Devops.QemuBootstrap
 import           Devops.QemuNbd
 import           Devops.BaseImage
 import           Devops.Callback
@@ -29,7 +30,7 @@ main = do
 
     chrootNestedSetup :: PubkeyContent -> IO ()
     chrootNestedSetup pubkeys = do
-        defaultMain (bootstrapConfig nbdSlot (baseImageConfig pubkeys) imageContent)
+        defaultMain (nbdBootstrapConfig nbdSlot (baseImageConfig pubkeys) imageContent)
                     [optimizeDebianPackages]
                     ["up"]
 
