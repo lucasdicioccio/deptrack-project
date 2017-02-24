@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Devops.Debootstrap where
+module Devops.Debootstrap (
+    Debootstrapped (..)
+  , debootstrapped
+  , DebootstrapSuite (..)
+  , trusty, xenial , jessie
+  ) where
 
 import           Data.Monoid             ((<>))
 import           Data.Text               (Text)
@@ -12,30 +17,34 @@ import qualified Devops.Debian.Commands as Cmd
 import           Devops.Storage
 import           Devops.Utils
 
-data Debootstrapped = Debootstrapped !DirectoryPresent
-
 -- | The configuration for the suite to debootstrap.
--- TODO: push more of the configuration here.
-data DebootstrapSuite =
-    DebootstrapSuite { suiteName                 :: Name
-                     , kernelPackageName         :: Name
-                     , dhcpClientPackageName     :: Name
-                     , ethernetAdapterDchpConfig :: DevOp FilePresent
+data DebootstrapSuite a =
+    DebootstrapSuite { suiteName                 :: !Name
                      , mirror                    :: !Mirror
+                     , specificConfiguration     :: !a
                      }
 
 -- | A Mirror to debootstrap from.
 newtype Mirror = Mirror { mirrorURL :: Text }
 
-ubuntuMirror :: Mirror
+-- | Some well-known mirrors.
+ubuntuMirror, debianMirror :: Mirror
 ubuntuMirror = Mirror "http://archive.ubuntu.com/ubuntu/"
-
-debianMirror :: Mirror
 debianMirror = Mirror "http://httpredir.debian.org/debian/"
+
+-- | Some well-known debootstrap suites.
+trusty, xenial, jessie :: a -> DebootstrapSuite a
+trusty = DebootstrapSuite "trusty" ubuntuMirror
+xenial = DebootstrapSuite "xenial" ubuntuMirror
+jessie = DebootstrapSuite "jessie" debianMirror
+
+-- | A directory holding a Debootstrapped environment.
+data Debootstrapped = Debootstrapped !DirectoryPresent
 
 -- | Debootstraps a distribution in the root partition of an NBD export.
 -- Also mounts /dev, /sys, and /proc in the deboostrapped directory.
-debootstrapped :: DebootstrapSuite
+-- TODO: the extra mounts should be optional
+debootstrapped :: DebootstrapSuite a
   -> DevOp DirectoryPresent
   -> DevOp Debootstrapped
 debootstrapped suite mkTarget = devop fst mkOp $ do
@@ -55,7 +64,7 @@ debootstrapped suite mkTarget = devop fst mkOp $ do
   where
     mkOp (_, (dstrap, cr, mnt, umnt, mntdir, args)) =
         buildOp
-            ("debootstrap")
+            ("debootstrap:" <> suiteName suite)
             ("unpacks a clean intallation in" <> Text.pack mntdir)
             (noCheck)
             (blindRun dstrap (args mntdir) ""

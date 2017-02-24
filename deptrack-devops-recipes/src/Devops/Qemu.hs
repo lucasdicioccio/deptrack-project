@@ -24,6 +24,7 @@ import           Devops.Service
 import           Devops.Storage
 import           Devops.Base
 import           Devops.Utils
+import           Devops.QemuBootstrap (QemuBase)
 
 type RAM = Int -- TODO: improve
 type RepoDir = FilePath
@@ -146,13 +147,13 @@ baseImageQemuVm :: (RunDir,RepoDir)
        -> Index
        -> RAM
        -> Int
-       -> DevOp BaseImage
+       -> DevOp (BaseImage QemuBase)
        -> DevOp (Daemon QemuVM)
 baseImageQemuVm env@(rundir,_) plan idx ram cpuCount boot = do
     let disk = newDiskFromBaseImage rundir idx boot
     qemuVm env plan idx ram cpuCount disk
 
-newDiskFromBaseImage :: RunDir -> Index -> DevOp BaseImage -> DevOp QemuDisk
+newDiskFromBaseImage :: RunDir -> Index -> DevOp (BaseImage QemuBase) -> DevOp QemuDisk
 newDiskFromBaseImage rundir idx mkBase = do
   let asRepo (FilePresent f) = LocalRepositoryFile f
   let f = asRepo . imagePath <$> mkBase

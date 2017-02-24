@@ -5,34 +5,35 @@ module Devops.BaseImage where
 
 import           Data.Monoid             ((<>))
 import qualified Data.Text               as Text
-import           DepTrack                (declare, inject)
+import           Data.Typeable           (Typeable)
+import           DepTrack                (declare)
 import           System.FilePath         (makeRelative, (</>))
 
 import           Devops.Base
 import           Devops.Callback
-import           Devops.Debian
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Debootstrap
 import           Devops.Storage
 import           Devops.Utils
 
-data BaseImage = BaseImage {
+data BaseImage a = BaseImage {
     imagePath :: !FilePresent
-  , config    :: !BaseImageConfig
+  , config    :: !(BaseImageConfig a)
   }
-data BaseImageConfig = BaseImageConfig {
+data BaseImageConfig a = BaseImageConfig {
     superUser :: !Name
   , pubKeys   :: !FileContent
   , binPath   :: !FilePath -- Path to binary to turnup a new base image.
-  , cfgSuite  :: !DebootstrapSuite
+  , cfgSuite  :: !(DebootstrapSuite a)
   }
 
 -- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
-bootstrap :: FilePath                 -- Path receiving the qemu image.
+bootstrap :: Typeable a
+          => FilePath                 -- Path receiving the qemu image.
           -> DevOp DirectoryPresent   -- directory receiving the debootstrap environment
-          -> BaseImageConfig          -- Configuration of the base image.
+          -> (BaseImageConfig a)      -- Configuration of the base image.
           -> CallBackMethod
-          -> DevOp BaseImage
+          -> DevOp (BaseImage a)
 bootstrap imgpath bootstrapdir cfg (BinaryCall selfPath selfBootstrapArgs) = devop fst mkOp $ do
     let src = localRepositoryFile selfPath
     let base = debootstrapped (cfgSuite cfg) bootstrapdir
@@ -51,8 +52,3 @@ bootstrap imgpath bootstrapdir cfg (BinaryCall selfPath selfBootstrapArgs) = dev
         (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
         noAction
         noAction
-
-bootstrapConfig :: BaseImageConfig -> DevOp a -> DevOp a
-bootstrapConfig cfg extraConfig = do
-    let extraPkgs = traverse deb [(dhcpClientPackageName . cfgSuite) cfg, (kernelPackageName . cfgSuite) cfg ]
-    fst <$> (extraConfig `inject` extraPkgs)

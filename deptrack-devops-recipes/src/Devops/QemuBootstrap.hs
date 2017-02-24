@@ -15,11 +15,18 @@ import           Devops.Debian
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Debian.User
 import           Devops.Debootstrap
+import qualified Devops.Debootstrap as Debootstrap
 import           Devops.Storage.Format
 import           Devops.Storage.Mount
 import           Devops.QemuNbd
 import           Devops.Storage
 import           Devops.Utils
+
+data QemuBase =
+    QemuBase { kernelPackageName         :: !Name
+             , dhcpClientPackageName     :: !Name
+             , ethernetAdapterDchpConfig :: !(DevOp FilePresent)
+             }
 
 -- | Bootstraps a base image, copying the image after turndown.
 --
@@ -29,10 +36,10 @@ import           Devops.Utils
 synchedBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
-          -> BaseImageConfig  -- Configuration of the base image.
+          -> (BaseImageConfig QemuBase) -- Configuration of the base image.
           -> GB Size
           -> CallBackMethod
-          -> DevOp BaseImage
+          -> DevOp (BaseImage QemuBase)
 synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfileBackup x y))
 
 -- | Bootstraps a base image, copying the image after turnup.
@@ -47,10 +54,10 @@ synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfil
 dirtyBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
-          -> BaseImageConfig  -- Configuration of the base image.
+          -> (BaseImageConfig QemuBase)  -- Configuration of the base image.
           -> GB Size
           -> CallBackMethod
-          -> DevOp BaseImage
+          -> DevOp (BaseImage QemuBase)
 dirtyBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turnupfileBackup x y))
 
 bootstrapWithImageCopyFunction ::
@@ -58,10 +65,10 @@ bootstrapWithImageCopyFunction ::
           -> FilePath  -- Path to a temporary dir receiving the debootstrap environment.
           -> FilePath  -- Path receiving the qemu image.
           -> NBDSlot   -- NBD device number to use during the bootstrap.
-          -> BaseImageConfig  -- Configuration of the base image.
+          -> (BaseImageConfig QemuBase)  -- Configuration of the base image.
           -> GB Size
           -> CallBackMethod
-          -> DevOp BaseImage
+          -> DevOp (BaseImage QemuBase)
 bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     let qcow = qcow2Image (imgpath <> ".tmp") size
     let backedupQcow = QemuImage <$> imgcopy imgpath (fmap getImage qcow)
@@ -118,7 +125,7 @@ ens3IfaceConfig = convertString $ unlines [
   ]
 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
-nbdBootstrapConfig :: NBDSlot -> BaseImageConfig -> DevOp a -> DevOp a
+nbdBootstrapConfig :: NBDSlot -> BaseImageConfig QemuBase -> DevOp a -> DevOp a
 nbdBootstrapConfig slot cfg extraConfig = do
     let login = superUser cfg
     let keys = pubKeys cfg
@@ -126,17 +133,22 @@ nbdBootstrapConfig slot cfg extraConfig = do
     let extraGroups = fmap fst $ (traverse group ["sudo"]) `inject` deb "sudo"
     let u = user login g extraGroups
     let sshSecretsDir = userDirectory ".ssh" u
-    let imageCfg = do
+    let configFiles = do
             authKeyspath <- (\(DirectoryPresent dirpath) -> dirpath </> "authorized_keys") <$> sshSecretsDir
             _ <- fileContent authKeyspath (pure keys) `inject` sshSecretsDir
             _ <- fileContent "/etc/sudoers" (pure sudoers) `inject` deb "sudo"
             _ <- fileContent "/etc/fstab" (pure fstab)
             _ <- fileContent "/etc/network/interfaces.d/loopback" (pure loopbackIfaceConfig) `inject` deb "ifupdown"
-            _ <- fileContent "/etc/dhcp/dhclient-exit-hooks.d/hostname" (pure hostnameDhcpHook) `inject` (deb $ (dhcpClientPackageName . cfgSuite) cfg)
-            _ <- ethernetAdapterDchpConfig (cfgSuite cfg)
+            _ <- fileContent "/etc/dhcp/dhclient-exit-hooks.d/hostname" (pure hostnameDhcpHook) `inject` (deb $ (dhcpClientPackageName . specificConfiguration . cfgSuite) cfg)
+            _ <- ethernetAdapterDchpConfig (specificConfiguration $ cfgSuite cfg)
             _ <- grubSetup slot
             return ()
-    fst <$> bootstrapConfig cfg (extraConfig `inject` imageCfg)
+    let basePkgs = traverse deb [
+              (dhcpClientPackageName . specificConfiguration . cfgSuite) cfg
+            , (kernelPackageName . specificConfiguration . cfgSuite) cfg
+            ]
+    let imageCfg = configFiles `inject` basePkgs
+    fst <$> (extraConfig `inject` imageCfg)
 
 -- | Configuration content for the fstab.
 -- TODO: build from a partition schema instead.
@@ -162,17 +174,20 @@ sudoers = convertString $ unlines [
  , "%sudo   ALL=(ALL) NOPASSWD:ALL"
  ]
 
-trusty :: DebootstrapSuite
-trusty = DebootstrapSuite "trusty" "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0 ubuntuMirror
+trusty :: DebootstrapSuite QemuBase
+trusty = Debootstrap.trusty base
   where
+    base = QemuBase "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0
     eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
 
-xenial :: DebootstrapSuite
-xenial = DebootstrapSuite "xenial" "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3 ubuntuMirror
+xenial :: DebootstrapSuite QemuBase
+xenial = Debootstrap.xenial base
   where
+    base = QemuBase "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3
     ens3 = fmap snd $ fileContent "/etc/network/interfaces.d/ens3" (pure ens3IfaceConfig)
-  
-jessie :: DebootstrapSuite
-jessie = DebootstrapSuite "jessie" "linux-image-amd64" "isc-dhcp-client" eth0 debianMirror
+
+jessie :: DebootstrapSuite QemuBase
+jessie = Debootstrap.jessie base
   where
+    base = QemuBase "linux-image-amd64" "isc-dhcp-client" eth0
     eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)

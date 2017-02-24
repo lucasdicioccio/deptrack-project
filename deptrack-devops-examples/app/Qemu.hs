@@ -55,7 +55,7 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
     disk :: DevOp QemuDisk
     disk = newDiskFromBaseImage rundir index baseImage
 
-    baseImage :: DevOp BaseImage
+    baseImage :: DevOp (BaseImage QemuBase)
     baseImage = dirtyBootstrap "/opt/repo/debootstrap"
                                savedImagePath
                                nbdSlot
@@ -66,7 +66,7 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
     callback :: CallBackMethod
     callback = BinaryCall self (magicArgv pubkeys)
 
-baseImageConfig :: PubkeyContent -> BaseImageConfig
+baseImageConfig :: PubkeyContent -> (BaseImageConfig QemuBase)
 baseImageConfig pubkeys =
     BaseImageConfig imgSuperUser pubkeys bootstrapBin xenial
 
