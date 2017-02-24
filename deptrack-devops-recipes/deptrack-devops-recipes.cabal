@@ -21,6 +21,7 @@ library
                   , Devops.Authentication
                   , Devops.BaseImage
                   , Devops.Binary
+                  , Devops.DockerBootstrap
                   , Devops.Callback
                   , Devops.Debian
                   , Devops.Debian.Base
