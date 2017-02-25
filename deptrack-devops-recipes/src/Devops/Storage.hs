@@ -13,6 +13,7 @@ module Devops.Storage (
   , preExistingFile
   , DirectoryPresent (..) , directory , subdirectory
   , ioFile
+  , tarDirectory
   --
   , fileExist
   , blindRemoveLink
@@ -93,6 +94,22 @@ fileCopy mkPath mkSrc = devop fst mkop $ do
                       (fs sync >> blindRun cp [srcPath, path] "" >> fs sync)
                       (blindRemoveLink path)
                       noAction
+
+tarDirectory :: FilePath -> DevOp DirectoryPresent -> DevOp RepositoryFile
+tarDirectory rpath src = devop fst mkOp $ do
+    dir <- src
+    tar <- Cmd.tar
+    sync <- Cmd.sync
+    return $ (LocalRepositoryFile rpath, (tar, dir, sync))
+  where
+    fs sync = blindRun sync [] ""
+    mkOp (_, (tar,(DirectoryPresent dir),sync)) =
+            buildOp ("tar-directory-backup: " <> Text.pack rpath)
+                    ("backup " <> Text.pack dir <> " at " <> Text.pack rpath)
+                    (checkFilePresent rpath)
+                    (fs sync >> blindRun tar ["-f", rpath, "-C", dir, "-c", "."] "" >> fs sync)
+                    (blindRemoveLink rpath)
+                    noAction
 
 -- | backup a file at turndown
 turndownfileBackup :: FilePath -> DevOp FilePresent -> DevOp (RepositoryFile, FilePresent)
