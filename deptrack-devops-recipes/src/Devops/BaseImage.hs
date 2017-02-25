@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase        #-}
 
+-- | Module representing base images in an immutable-infrastructure approach.
+--
+-- This module proposes to bootstrap base images locally from a debootstrapped
+-- environment and using a chroot.
 module Devops.BaseImage where
 
 import           Data.Monoid             ((<>))
@@ -27,15 +31,14 @@ data BaseImageConfig a = BaseImageConfig {
 
 -- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
 bootstrap :: Typeable a
-          => FilePath                 -- Path receiving the qemu image.
-          -> DevOp DirectoryPresent   -- directory receiving the debootstrap environment
+          => FilePath                 -- Path receiving the image.
+          -> DevOp DirectoryPresent   -- Directory receiving the debootstrap environment
           -> (BaseImageConfig a)      -- Configuration of the base image.
           -> CallBackMethod
           -> DevOp (BaseImage a)
-bootstrap imgpath bootstrapdir cfg (BinaryCall selfPath selfBootstrapArgs) = devop fst mkOp $ do
+bootstrap imgpath bootstrapdir cfg cb = devop fst mkOp $ do
     let src = localRepositoryFile selfPath
     let base = debootstrapped (cfgSuite cfg) bootstrapdir
-
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in debootstrapped dir for " <> Text.pack imgpath
     (Debootstrapped (DirectoryPresent mntPath)) <- base
@@ -44,6 +47,7 @@ bootstrap imgpath bootstrapdir cfg (BinaryCall selfPath selfBootstrapArgs) = dev
     chroot <- Cmd.chroot
     return (BaseImage (FilePresent imgpath) cfg, (chroot, mntPath))
   where
+    (BinaryCall selfPath selfBootstrapArgs) = cb
     mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")
         noCheck
