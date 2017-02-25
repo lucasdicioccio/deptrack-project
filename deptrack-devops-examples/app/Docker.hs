@@ -8,6 +8,7 @@ import           Devops.Base (DevOp)
 import           Devops.BaseImage
 import           Devops.Callback
 import           Devops.Cli (defaultMain)
+import           Devops.Debian (deb)
 import           Devops.DockerBootstrap
 import           Devops.Optimize (optimizeDebianPackages)
 
@@ -17,7 +18,8 @@ main = do
     if isMagicArgv args then chrootNestedSetup else dockerSetup args
   where
     chrootNestedSetup :: IO ()
-    chrootNestedSetup = return ()
+    chrootNestedSetup = void $ do
+        defaultMain imageContent [optimizeDebianPackages] ["up"]
 
     dockerSetup :: [String] -> IO ()
     dockerSetup args = do
@@ -44,4 +46,8 @@ dock self = void $ simpleBootstrap tempdir baseImageConfig callback
 
     baseImageConfig :: BaseImageConfig DockerBase
     baseImageConfig =
-        BaseImageConfig (error "imgSuperUser") (error "pubkeys") bootstrapBin xenial
+        BaseImageConfig bootstrapBin xenial
+
+imageContent :: DevOp ()
+imageContent = void $ do
+    deb "git-core"

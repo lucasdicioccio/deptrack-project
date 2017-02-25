@@ -68,7 +68,7 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
 
 baseImageConfig :: PubkeyContent -> (BaseImageConfig QemuBase)
 baseImageConfig pubkeys =
-    BaseImageConfig imgSuperUser pubkeys bootstrapBin xenial
+    BaseImageConfig bootstrapBin (xenial imgSuperUser pubkeys)
 
 imageContent :: DevOp ()
 imageContent = return ()

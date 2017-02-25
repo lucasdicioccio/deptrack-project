@@ -26,6 +26,8 @@ data QemuBase =
     QemuBase { kernelPackageName         :: !Name
              , dhcpClientPackageName     :: !Name
              , ethernetAdapterDchpConfig :: !(DevOp FilePresent)
+             , superUser                 :: !Name
+             , pubKeys                   :: !FileContent
              }
 
 -- | Bootstraps a base image, copying the image after turndown.
@@ -127,8 +129,8 @@ ens3IfaceConfig = convertString $ unlines [
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
 nbdBootstrapConfig :: NBDSlot -> BaseImageConfig QemuBase -> DevOp a -> DevOp a
 nbdBootstrapConfig slot cfg extraConfig = do
-    let login = superUser cfg
-    let keys = pubKeys cfg
+    let login = superUser . specificConfiguration . cfgSuite $ cfg
+    let keys = pubKeys . specificConfiguration . cfgSuite $ cfg
     let g = group login
     let extraGroups = fmap fst $ (traverse group ["sudo"]) `inject` deb "sudo"
     let u = user login g extraGroups
@@ -174,20 +176,20 @@ sudoers = convertString $ unlines [
  , "%sudo   ALL=(ALL) NOPASSWD:ALL"
  ]
 
-trusty :: DebootstrapSuite QemuBase
-trusty = Debootstrap.trusty base
+trusty :: Name -> FileContent -> DebootstrapSuite QemuBase
+trusty superuser pubkeys = Debootstrap.trusty base
   where
-    base = QemuBase "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0
+    base = QemuBase "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0 superuser pubkeys
     eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
 
-xenial :: DebootstrapSuite QemuBase
-xenial = Debootstrap.xenial base
+xenial :: Name -> FileContent -> DebootstrapSuite QemuBase
+xenial superuser pubkeys = Debootstrap.xenial base
   where
-    base = QemuBase "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3
+    base = QemuBase "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3 superuser pubkeys
     ens3 = fmap snd $ fileContent "/etc/network/interfaces.d/ens3" (pure ens3IfaceConfig)
 
-jessie :: DebootstrapSuite QemuBase
-jessie = Debootstrap.jessie base
+jessie :: Name -> FileContent -> DebootstrapSuite QemuBase
+jessie superuser pubkeys = Debootstrap.jessie base
   where
-    base = QemuBase "linux-image-amd64" "isc-dhcp-client" eth0
+    base = QemuBase "linux-image-amd64" "isc-dhcp-client" eth0 superuser pubkeys
     eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)

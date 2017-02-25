@@ -21,9 +21,7 @@ data BaseImage a = BaseImage {
   , config    :: !(BaseImageConfig a)
   }
 data BaseImageConfig a = BaseImageConfig {
-    superUser :: !Name
-  , pubKeys   :: !FileContent
-  , binPath   :: !FilePath -- Path to binary to turnup a new base image.
+    binPath   :: !FilePath -- Path to binary to turnup a new base image.
   , cfgSuite  :: !(DebootstrapSuite a)
   }
 
