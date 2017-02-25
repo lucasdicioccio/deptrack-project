@@ -84,7 +84,7 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     let mountedRootPartition = mount rootPartition (directory dirname)
     let bootstrapdir = fmap mountPoint mountedRootPartition
 
-    let boot = bootstrap imgpath bootstrapdir cfg cb
+    let boot = bootstrap imgpath bootstrapdir cfg allMounts cb
     fmap snd (backedupQcow `inject` boot)
 
 -- | Setups grub on the NBD device from the chroot and fixes grub.cfg

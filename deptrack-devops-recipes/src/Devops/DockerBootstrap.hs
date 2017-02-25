@@ -6,10 +6,13 @@ module Devops.DockerBootstrap (
   , xenial
   ) where
 
+import           Data.Monoid        ((<>))
+import           DepTrack           (inject)
+
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
-import           Devops.Debootstrap (DebootstrapSuite)
+import           Devops.Debootstrap (DebootstrapSuite, noMounts)
 import qualified Devops.Debootstrap as Debootstrap
 import           Devops.Storage
 
@@ -23,4 +26,7 @@ simpleBootstrap :: FilePath
                 -> CallBackMethod
                 -> DevOp (BaseImage DockerBase)
 simpleBootstrap imgpath cfg cb = do
-    bootstrap imgpath (directory imgpath) cfg cb
+    let debootstrapdir = directory (imgpath <> ".debootstrapdir")
+    let deboostrapping = bootstrap imgpath debootstrapdir cfg noMounts cb
+    let archiving = tarDirectory imgpath debootstrapdir
+    fmap snd (archiving `inject` deboostrapping)
