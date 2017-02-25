@@ -38,7 +38,7 @@ bootstrap :: Typeable a
           -> DevOp (BaseImage a)
 bootstrap imgpath bootstrapdir cfg cb = devop fst mkOp $ do
     let src = localRepositoryFile selfPath
-    let base = debootstrapped (cfgSuite cfg) bootstrapdir
+    let base = debootstrapped (cfgSuite cfg) allMounts bootstrapdir
     let makeDestPath (Debootstrapped (DirectoryPresent x)) = x </> (makeRelative "/" (binPath cfg))
     let desc1 = "copies " <> Text.pack selfPath <> " in debootstrapped dir for " <> Text.pack imgpath
     (Debootstrapped (DirectoryPresent mntPath)) <- base

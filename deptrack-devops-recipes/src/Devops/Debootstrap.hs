@@ -1,12 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase        #-}
 
 module Devops.Debootstrap (
     Debootstrapped (..)
+  , DeboostrapMounts
   , debootstrapped
   , DebootstrapSuite (..)
   , trusty, xenial , jessie
+  , allMounts , noMounts
   ) where
 
+import           Data.Foldable           (traverse_)
 import           Data.Monoid             ((<>))
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
@@ -41,13 +45,25 @@ jessie = DebootstrapSuite "jessie" debianMirror
 -- | A directory holding a Debootstrapped environment.
 data Debootstrapped = Debootstrapped !DirectoryPresent
 
+data DeboostrapMount = ProcFS | SysFS | DevFS
+  deriving (Show, Eq, Ord)
+
+type DeboostrapMounts = [DeboostrapMount]
+
+noMounts :: DeboostrapMounts
+noMounts = []
+
+allMounts :: DeboostrapMounts
+allMounts = [ProcFS, SysFS, DevFS]
+
 -- | Debootstraps a distribution in the root partition of an NBD export.
 -- Also mounts /dev, /sys, and /proc in the deboostrapped directory.
 -- TODO: the extra mounts should be optional
 debootstrapped :: DebootstrapSuite a
+  -> DeboostrapMounts
   -> DevOp DirectoryPresent
   -> DevOp Debootstrapped
-debootstrapped suite mkTarget = devop fst mkOp $ do
+debootstrapped suite mounts mkTarget = devop fst mkOp $ do
     let args mntdir = [ "--variant", "buildd"
                       , "--arch", "amd64"
                       , "--include", "openssh-server,sudo,ntp,libgmp-dev,grub-pc"
@@ -63,15 +79,18 @@ debootstrapped suite mkTarget = devop fst mkOp $ do
     return (Debootstrapped dir, (dstrap, cr, mnt, umnt, mntdir, args))
   where
     mkOp (_, (dstrap, cr, mnt, umnt, mntdir, args)) =
-        buildOp
+        let mountOne = \case
+                DevFS  -> blindRun mnt ["-o", "bind", "/dev", mntdir </> "dev"] ""
+                ProcFS -> blindRun cr  [mntdir, "mount", "-t", "proc", "none", "/proc"] ""
+                SysFS  -> blindRun cr  [mntdir, "mount", "-t", "sysfs", "none", "/sys"] ""
+            unmountOne = \case
+                DevFS  -> blindRun umnt [mntdir </> "dev"] ""
+                ProcFS -> blindRun cr [mntdir, "umount", "/proc"] ""
+                SysFS  -> blindRun cr [mntdir, "umount", "/sys"] ""
+        in buildOp
             ("debootstrap:" <> suiteName suite)
             ("unpacks a clean intallation in" <> Text.pack mntdir)
             (noCheck)
-            (blindRun dstrap (args mntdir) ""
-             >> blindRun mnt ["-o", "bind", "/dev", mntdir </> "dev"] ""
-             >> blindRun cr [mntdir, "mount", "-t", "proc", "none", "/proc"] ""
-             >> blindRun cr [mntdir, "mount", "-t", "sysfs", "none", "/sys"] "")
-            (blindRun cr [mntdir, "umount", "/proc"] ""
-             >> blindRun cr [mntdir, "umount", "/sys"] ""
-             >> blindRun umnt [mntdir </> "dev"] "")
+            (blindRun dstrap (args mntdir) "" >> traverse_ mountOne mounts)
+            (traverse_ unmountOne (reverse mounts))
             (noAction)
