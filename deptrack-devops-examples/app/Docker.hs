@@ -9,6 +9,7 @@ import           Devops.BaseImage
 import           Devops.Callback
 import           Devops.Cli (defaultMain)
 import           Devops.Debian (deb)
+import           Devops.Docker
 import           Devops.DockerBootstrap
 import           Devops.Optimize (optimizeDebianPackages)
 
@@ -39,7 +40,7 @@ tempdir = "/opt/dockbootstrap"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 
 dock :: Self -> DevOp ()
-dock self = void $ simpleBootstrap tempdir baseImageConfig callback
+dock self = void $ dockerImage "deptrack-example" (simpleBootstrap tempdir baseImageConfig callback)
   where
     callback :: CallBackMethod
     callback = BinaryCall self magicArgv
