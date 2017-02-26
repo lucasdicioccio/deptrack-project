@@ -12,6 +12,10 @@ import           Devops.Debian (deb)
 import           Devops.Docker
 import           Devops.DockerBootstrap
 import           Devops.Optimize (optimizeDebianPackages)
+import           Devops.Storage
+
+import           Devops.Haskell
+import           Devops.Debian.User
 
 main :: IO ()
 main = do
@@ -40,7 +44,10 @@ tempdir = "/opt/dockbootstrap"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 
 dock :: Self -> DevOp ()
-dock self = void $ dockerImage "deptrack-example" (simpleBootstrap tempdir baseImageConfig callback)
+dock self = void $ do
+    let image = dockerImage "deptrack-example" (simpleBootstrap tempdir baseImageConfig callback)
+    let mkCmd = return $ (ImportedContainerCommand (FilePresent "/usr/bin/touch") ["hello-world"])
+    container "deptrack-devops-example-container" image mkCmd
   where
     callback :: CallBackMethod
     callback = BinaryCall self magicArgv
@@ -52,3 +59,4 @@ dock self = void $ dockerImage "deptrack-example" (simpleBootstrap tempdir baseI
 imageContent :: DevOp ()
 imageContent = void $ do
     deb "git-core"
+    stackPackage "attoparsec" (mereUser "root")
