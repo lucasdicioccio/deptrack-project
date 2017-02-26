@@ -114,7 +114,7 @@ magic value triggers the codepath for provisioning the chroot),
 Docker is all the craze these days. This installs it and bootstraps a fresh
 base image from nothing, then starts two containers based on this fresh image.
 
-The output of `dot -Tpng -Grankdir=LR -o deptrack-devops-example-docker.png <( deptrack-devops-example-docker dot )`
+The output of `dot -Tpng -o deptrack-devops-example-docker.png <( deptrack-devops-example-docker dot )`
 is as follows:
 ![graph of deptrack-devops-example-docker dependencies](deptrack-devops-example-docker.png)
 
