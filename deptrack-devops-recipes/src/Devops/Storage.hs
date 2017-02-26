@@ -17,6 +17,7 @@ module Devops.Storage (
   --
   , fileExist
   , blindRemoveLink
+  , checkFilePresent
   ) where
 
 import           Control.Exception     (catch, IOException)
