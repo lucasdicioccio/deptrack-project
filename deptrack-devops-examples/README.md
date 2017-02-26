@@ -85,7 +85,8 @@ example (I'm currently leaving this for future work).
 # deptrack-devops-example-qemu
 
 This target is a seriously big one. Marvel at the beautiful requirements to
-build and start a virtual machine from scratch.
+build and start a virtual machine from scratch, including a local DHCP and DNS
+servers.
 
 The output of `dot -Tpng -Grankdir=LR -o deptrack-devops-example-qemu.png <( deptrack-devops-example-qemu $HOME/.ssh/authorized_keys dot )`
 is as follows:
@@ -107,3 +108,44 @@ binary will copy itself into the mounted image, then call itself back using
 _chroot_. This callback mechanism works because this example binary parses
 command line arguments slightly differently from the `defaultMain` (i.e., some
 magic value triggers the codepath for provisioning the chroot),
+
+# deptrack-devops-example-docker
+
+Docker is all the craze these days. This installs it and bootstraps a fresh
+base image from nothing, then starts two containers based on this fresh image.
+
+The output of `dot -Tpng -Grankdir=LR -o deptrack-devops-example-docker.png <( deptrack-devops-example-docker dot )`
+is as follows:
+![graph of deptrack-devops-example-docker dependencies](deptrack-devops-example-docker.png)
+
+This graph has three interesting nodes. One one hand, we create a base
+_docker-image_ with `docker import` from a debootstrapped environment. To
+customized the debootstrapped environment, we used a _chroot_ exactly like we
+did in the deptrack-devops-example-qemu example. On the other hand a pair of
+_docker-container_ nodes exist. Although they look similar they actually are
+not. The `deptrack-devops-example-container` container merely builds a
+container which runs a `touch hello-world` in the containerized environment.
+This is possible because we _know_ that the debootstrap chroot has installed
+the `touch` command. Sometimes, we want to couple the content of the docker
+program more tighlty: what if we need to turnup more things? In particular,
+there coule be things we want to turnup but that cannot be _installed_ during
+the chroot setup (such as a running daemon). We actually can callback more
+DepTrack-Devops nodes from within the Docker container as the command to run
+when starting the container. This callback technique is implemented as the
+`deptrack-devops-example-docker-callback` in the above example. One advantage
+here is that since we create the Docker image and container, we can `docker
+copy` a binary we know ahead of time and then call this binary. This callback
+setup is pretty oblivious to the type of nodes we need to turnup (say, a Nginx
+server or anthing you can express using DepTrack DevOps). As a result, we
+provide a `dockerize` function that turn-ups arbitrary serializable DevOps from
+within Docker containers. One key advantage of this technique is that GHC (the
+Haskell compiler) will know the type of the node running in the Docker
+container, which can let you build complex but type-checked infrastructures.
+
+The serialization mechanism leverages
+![https://github.com/tweag/distributed-closure](distributed-closure) and the
+StaticPointers GHC extension.
+
+The code in `app/Docker.hs` is laid out to show the two various callback
+mechanisms (in the chroot: we use a hardcoded path into the code; whereas in
+docker: we interpret a Base64-encode closure that was passed before).
