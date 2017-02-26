@@ -82,4 +82,6 @@ executable deptrack-devops-example-docker
                      , deptrack-devops
                      , deptrack-devops-examples
                      , deptrack-devops-recipes
+                     , distributed-closure
+                     , string-conversions
   default-language:    Haskell2010

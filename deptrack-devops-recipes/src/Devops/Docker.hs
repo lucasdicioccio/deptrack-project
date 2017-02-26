@@ -8,8 +8,12 @@ module Devops.Docker (
   , Container (..)
   , ContainerCommand (..)
   , container
+  , Dockerized (..)
+  , dockerized
   ) where
 
+import           Control.Distributed.Closure (Closure)
+import           Control.Distributed.Closure (unclosure)
 import           Data.Monoid ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
@@ -18,6 +22,7 @@ import           System.FilePath.Posix   ((</>))
 
 import           Devops.Base
 import           Devops.BaseImage
+import           Devops.Callback
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.DockerBootstrap
 import           Devops.Utils
@@ -62,7 +67,7 @@ dockerImage name mkBase = devop fst mkOp $ do
                 (blindRun docker ["rmi", convertString name] "")
                 noAction
 
--- | Docker containers are built from an image and
+-- | Docker containers are built from an image and run a given command.
 data Container =
     Container { containerName    :: !Name
               , containerCidPath :: !FilePath
@@ -114,3 +119,26 @@ container name mkImage mkCmd = devop fst mkOp $ do
                 (blindRemoveLink cidFile
                  >> blindRun docker [ "rm" , convertString name ] "")
                 (blindRun docker [ "restart" , convertString name ] "")
+
+data Dockerized a = Dockerized !a !Container
+
+-- | Continues setting up a DevOp from within a docker container.
+dockerized :: Name
+           -> ClosureCallBack a
+           -> DevOp DockerImage
+           -> Closure (DevOp a) 
+           -> DevOp (Dockerized a)
+dockerized name mkCb mkImage clo = declare op $ do
+    let obj = runDevOp $ unclosure clo
+    (BinaryCall selfPath args) <- mkCb clo
+    let selfBin = preExistingFile selfPath
+    let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
+    let cbContainer = container name mkImage mkCmd
+    Dockerized obj <$> cbContainer
+  where
+    op = buildPreOp ("dockerized-node: " <> name)
+                    ("dockerize some node in the Docker image:" <> name)
+                    noCheck
+                    noAction
+                    noAction
+                    noAction
