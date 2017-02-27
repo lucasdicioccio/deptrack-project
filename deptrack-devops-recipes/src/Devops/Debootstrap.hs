@@ -87,7 +87,7 @@ debootstrapped suite mounts mkTarget = devop fst mkOp $ do
                 DevFS  -> blindRun umnt [mntdir </> "dev"] ""
                 ProcFS -> blindRun cr [mntdir, "umount", "/proc"] ""
                 SysFS  -> blindRun cr [mntdir, "umount", "/sys"] ""
-            lsbReleasePathInChroot = mntdir </> "/etc/lsb-release"
+            lsbReleasePathInChroot = mntdir </> "etc/lsb-release"
         in buildOp
             ("debootstrap:" <> suiteName suite)
             ("unpacks a clean intallation in" <> Text.pack mntdir)
