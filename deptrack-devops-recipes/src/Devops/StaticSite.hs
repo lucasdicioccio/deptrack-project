@@ -35,9 +35,9 @@ staticSites rundir infos = do
 
 nginxConfigFromClonedRepo :: DevOp GitRepo -> DevOp NginxServerConfig
 nginxConfigFromClonedRepo mkRepo = do
-  let locs = [ location "/" staticSiteDirectives ]
+  let locs = [ NginxLocationConfig "/" staticSiteDirectives ]
   (GitRepo dir@(DirectoryPresent dirname) _ _) <- mkRepo
-  return $ server 80 (Text.pack $ takeFileName dirname) dir "index.html" locs
+  return $ NginxServerConfig 80 (Text.pack $ takeFileName dirname) dir "index.html" locs
 
 -- | Prepares nginx setup to run in proxy-pass mode.
 -- Static sites will be started in an upstream (parasited) host and be cloned
@@ -61,8 +61,8 @@ nginxProxyPassConfigFromService :: RunDir
 nginxProxyPassConfigFromService rundir hostname mkHttp = do
   (Remoted (Remote ip) (Listening port _)) <- mkHttp
   dir <- directory (rundir </> "www")
-  let locs = [ location "/" (proxyPassDirectives ip port) ]
-  return $ server 80 hostname dir "index.html" locs
+  let locs = [ NginxLocationConfig "/" (proxyPassDirectives ip port) ]
+  return $ NginxServerConfig 80 hostname dir "index.html" locs
 
 -- | Exposes a nginx server given sites configurations.
 reverseProxy :: RunDir
