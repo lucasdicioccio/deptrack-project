@@ -64,6 +64,31 @@ We observe a number of things:
   repository to install the Haskell Stack tool)
 - all Debian packages have been lumped into a single node (as per the optimization)
 
+# deptrack-devops-example-website
+
+This target configures NGinx for serving two static websites cloned from
+GitHub.
+
+The output of `dot -Tpng <( deptrack-devops-example-website dot ) > deptrack-devops-example-website.png` is as follows:
+![graph of deptrack-devops-example-website dependencies](deptrack-devops-example-website.png)
+
+This graph shows an intermediary-difficulty example: we want to serve static
+sites. Static sites code is hosted on GitHub. Hence, we need to git-cloned from
+GitHub.  We plan to use NGinx as a server.
+
+As a result, we need to install Git and NGinx, but also generate some NGinx
+configuration. Encoding these steps as a dependency graph ensures that we never
+start NGinx for a missing website: that would not typecheck.  There's a node
+named "stop-service: nginx", which corresponds to taking over systemd's
+responsibility to start NGinx (the service will be auto-started after
+installation or at start time -- this is not what we wish for).
+
+Note that the static sites repositories contain plain HTML rather than source
+code of a static generator. Also, NGinx will serve the git-clone output and the
+.git hidden directory will be served by nginx. As an exercise you can try
+modifying this example to clone some source code and run a generator to output
+the HTML directory contents.
+
 # deptrack-devops-example-postgrest
 
 This target is a more involved example. We want to play with PostGrest, and
