@@ -14,10 +14,10 @@ module Devops.Nginx (
   , staticSiteDirectives
   -- service
   , Nginx
+  , ConfigDir
   -- lall the rest
   , nginxWorkerUser
   , nginxMainServer
-  , RunDir
   , HostName
   ) where
 
@@ -39,7 +39,7 @@ import           Devops.Base
 import           Devops.Utils            (blindRun)
 
 -- | A dir where to locate nginx configs.
-type RunDir = FilePath
+type ConfigDir = FilePath
 
 -- | A hostname to configure nginx.
 type HostName = Name
@@ -51,7 +51,7 @@ data WebService = WebService
 -- | Opaque type with no inhabitant used for type families when running Nginx
 -- with the Devops.Service.daemon function.
 data Nginx
-type instance DaemonConfig Nginx = (FilePresent, Port (Daemon Nginx))
+type instance DaemonConfig Nginx = FilePresent
 
 -- | Data model of Nginx servers configurations.
 data NginxServerConfig =
@@ -195,24 +195,26 @@ nginxWorkerUser = preExistingUser "www-data"
 -- | Configures an nginx main server.
 --
 -- We model an nginx server as a listening daemon.
-nginxMainServer :: RunDir
+nginxMainServer :: Port (Daemon Nginx)
+                -- ^ port to listen on
+                -> ConfigDir
                 -- ^ directory for running the server and locating its config
                 -> [DevOp NginxServerConfig]
                 -- ^ individual sites configuration
                 -> DevOp (Listening (Daemon Nginx))
-nginxMainServer rundir mkCfgs =
+nginxMainServer port rundir mkCfgs =
     let reload = const $ sighupPidFile "/run/nginx.pid" in
     fmap listening $ reloadableDaemon "nginx" Nothing nginx commandArgs reload $ do
       let siteConfigs = traverse generateConfigFile mkCfgs
       let conf = mainConfiguration <$> nginxWorkerUser <*> siteConfigs
       (_,fp) <- fileContent (rundir </> "nginx.conf") conf
-      return (fp,80)
+      return fp
   where
     listening :: Daemon Nginx -> Listening (Daemon Nginx)
-    listening d@(Daemon _ _ _ (_,port)) = Listening port d
+    listening d = Listening port d
 
     commandArgs :: DaemonConfig Nginx -> CommandArgs
-    commandArgs (FilePresent path,_) = [ "-c" , path ]
+    commandArgs (FilePresent path) = [ "-c" , path ]
 
     generateConfigFile :: DevOp NginxServerConfig -> DevOp FilePresent
     generateConfigFile mkCfg = fmap snd $ do

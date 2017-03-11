@@ -25,12 +25,12 @@ import           Devops.Storage
 import           Devops.Base
 
 -- | Clones static sites in a homedir for a user named 'staticsites' and starts nginx.
-staticSites :: RunDir -> [(HostString,GitUrl,GitBranch)] -> DevOp (Listening WebService)
+staticSites :: ConfigDir -> [(HostString,GitUrl,GitBranch)] -> DevOp (Listening WebService)
 staticSites rundir infos = do
   let dir hostdir = userDirectory (Text.unpack hostdir) (mereUser "staticsites")
   let repo (hostname,url,branch) = gitClone url branch git (dir hostname)
   let configs = map (nginxConfigFromClonedRepo . repo) infos
-  let srv = nginxMainServer rundir configs
+  let srv = nginxMainServer 80 rundir configs
   (fmap . fmap) (const WebService) srv
 
 nginxConfigFromClonedRepo :: DevOp GitRepo -> DevOp NginxServerConfig
@@ -43,7 +43,7 @@ nginxConfigFromClonedRepo mkRepo = do
 -- Static sites will be started in an upstream (parasited) host and be cloned
 -- in the homedir of 'staticsites' user on the parasite.
 reverseProxiedStaticSiteConfig ::
-     RunDir
+     ConfigDir
   -> [(HostString,GitUrl,GitBranch)]
   -> DevOp (ParasitedHost)
   -> [DevOp NginxServerConfig]
@@ -54,7 +54,7 @@ reverseProxiedStaticSiteConfig rundir infos host =
       configs = map config infos
   in configs
 
-nginxProxyPassConfigFromService :: RunDir
+nginxProxyPassConfigFromService :: ConfigDir
                                 -> HostString
                                 -> DevOp (Remoted (Listening WebService))
                                 -> DevOp NginxServerConfig
@@ -65,9 +65,9 @@ nginxProxyPassConfigFromService rundir hostname mkHttp = do
   return $ NginxServerConfig 80 hostname dir "index.html" locs
 
 -- | Exposes a nginx server given sites configurations.
-reverseProxy :: RunDir
+reverseProxy :: ConfigDir
              -> [DevOp NginxServerConfig]
              -> DevOp (Exposed (Daemon Nginx))
 reverseProxy rundir configs = do
-  let srv = nginxMainServer rundir configs
+  let srv = nginxMainServer 80 rundir configs
   publicFacingService srv
