@@ -15,10 +15,13 @@ module Devops.Nginx (
   -- service
   , Nginx
   , ConfigDir
-  -- lall the rest
+  -- all the rest
   , nginxWorkerUser
   , nginxMainServer
   , HostName
+  -- higher-level construct
+  , reverseProxy
+  , proxyPass
   ) where
 
 import           Data.ByteString         (ByteString)
@@ -221,3 +224,25 @@ nginxMainServer port rundir mkCfgs =
         cfg@(NginxServerConfig _ name _ _ _) <- mkCfg
         fileContent (rundir </> printf "nginx-%s.conf" (Text.unpack name))
                     (pure $ convertString $ serverConfiguration cfg)
+
+-- | Exposes a nginx server given sites configurations
+reverseProxy :: ConfigDir
+             -> [DevOp NginxServerConfig]
+             -> DevOp (Exposed (Daemon Nginx))
+reverseProxy rundir configs = do
+    let srv = nginxMainServer 80 rundir configs
+    publicFacingService srv
+
+-- | Configures a nginx server stanza for proxying to an upstream webservice.
+proxyPass :: ConfigDir
+          -- ^ where the configurations are generated
+          -> HostString
+          -- ^ the HTTP hostname used to match & route requests
+          -> DevOp (Remoted (Listening WebService))
+          -- ^ a remote service to proxy queries to (i.e., the upstream)
+          -> DevOp NginxServerConfig
+proxyPass rundir hostname mkHttp = do
+    (Remoted (Remote ip) (Listening port _)) <- mkHttp
+    dir <- directory (rundir </> "www")
+    let locs = [ NginxLocationConfig "/" (proxyPassDirectives ip port) ]
+    return $ NginxServerConfig 80 hostname dir "index.html" locs
