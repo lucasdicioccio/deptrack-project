@@ -69,7 +69,7 @@ dock self = void $ do
               mkCmd
 
     -- a nifty callback where we pull arbitrary stuff in
-    dockerized "deptrack-devops-example-docker-callback"
+    committedImage $ dockerized "deptrack-devops-example-docker-callback"
                (selfCallback self magicDockerArgv)
                image
                (closure $ static dockerDevOpContent)

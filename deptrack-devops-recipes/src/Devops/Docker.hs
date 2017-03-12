@@ -10,6 +10,7 @@ module Devops.Docker (
   , container
   , Dockerized (..)
   , dockerized
+  , committedImage
   ) where
 
 import           Control.Distributed.Closure (Closure)
@@ -142,3 +143,25 @@ dockerized name mkCb mkImage clo = declare op $ do
                     noAction
                     noAction
                     noAction
+
+-- | Commit an image from a container.
+committedImage :: DevOp (Dockerized a) -> DevOp DockerImage
+committedImage mkDockerized = devop fst mkOp $ do
+    (Dockerized _ cntner) <- mkDockerized
+    let (DockerImage baseImageName) = containerImage cntner
+    let name = baseImageName <> "--" <> containerName cntner
+    docker <- Cmd.docker
+    return $ (DockerImage name, (docker, cntner))
+  where
+    mkOp (DockerImage name, (docker, cntner)) =
+        let hasName n dat = n `elem` lines dat in
+        buildOp ("docker-image: " <> name)
+                ("creates " <> name <> " based on container " <> containerName cntner)
+                (checkBinaryExitCodeAndStdout (hasName $ convertString name)
+                     docker [ "images"
+                            , "--format", "{{title .Repository}}"
+                            ]
+                            "")
+                (blindRun docker ["commit", convertString $ containerName cntner, convertString name] "")
+                (blindRun docker ["rmi", convertString name] "")
+                noAction
