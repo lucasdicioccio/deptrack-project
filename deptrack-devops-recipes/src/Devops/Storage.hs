@@ -18,6 +18,8 @@ module Devops.Storage (
   , fileExist
   , blindRemoveLink
   , checkFilePresent
+  --
+  , binaryPresent
   ) where
 
 import           Control.Exception     (catch, IOException)
@@ -206,3 +208,6 @@ ioFile path mkIO = devop fst mkOp $ do
                           (io >>= ByteString.writeFile path >> fs sync)
                           (blindRemoveLink path)
                           noAction
+
+binaryPresent :: DevOp (Binary a) -> DevOp FilePresent
+binaryPresent = fmap (FilePresent . binaryPath)
