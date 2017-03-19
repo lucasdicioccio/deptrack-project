@@ -11,6 +11,7 @@ module Devops.Docker (
   , Dockerized (..)
   , dockerized
   , committedImage
+  , fetchFile
   ) where
 
 import           Control.Distributed.Closure (Closure)
@@ -102,12 +103,14 @@ container name mkImage mkCmd = devop fst mkOp $ do
                 (ExistingContainerCommand fp argv) -> (return (), fp, argv)
                 (ImportedContainerCommand (FilePresent srcBin) argv) ->
                     let cb = "/devops-callback"
-                        action = blindRun docker [ "cp" , srcBin
-                                                 , convertString name <> ":" <> cb ] ""
+                        action = do
+                            putStrLn "*******copying into docker*********"
+                            blindRun docker [ "cp" , srcBin
+                                            , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
         in
         buildOp ("docker-container: " <> name)
-                ("creates " <> name <> " from image " <> imageName)
+                ("creates " <> name <> " from image " <> imageName <> " with args: " <> convertString (show callbackPath) <> " " <> convertString (show args))
                 (checkFilePresent cidFile)
                 (blindRun docker ([ "create"
                                  , "--cidfile" , cidFile
@@ -116,10 +119,11 @@ container name mkImage mkCmd = devop fst mkOp $ do
                                  , callbackPath
                                  ] ++ args )""
                  >> potentialCopy
-                 >> blindRun docker [ "start" , convertString name ] "")
+                 >> blindRun docker [ "start" , convertString name ] ""
+                 >> blindRun docker [ "wait" , convertString name ] "")
                 (blindRemoveLink cidFile
                  >> blindRun docker [ "rm" , convertString name ] "")
-                (blindRun docker [ "restart" , convertString name ] "")
+                noAction
 
 data Dockerized a = Dockerized !a !Container
 
@@ -165,3 +169,16 @@ committedImage mkDockerized = devop fst mkOp $ do
                 (blindRun docker ["commit", convertString $ containerName cntner, convertString name] "")
                 (blindRun docker ["rmi", convertString name] "")
                 noAction
+
+-- | Fetches a file from a container.
+fetchFile :: FilePath -> DevOp (Dockerized FilePresent) -> DevOp FilePresent
+fetchFile path mkFp = fmap f (generatedFile path Cmd.docker mkArgs)
+  where
+    f (_,_,filepresent) = filepresent
+    mkArgs = do
+        (Dockerized (FilePresent containerizedPath) cntnr) <- mkFp
+        return [ "container"
+               , "cp"
+               , (convertString $ containerName cntnr) <> ":" <> containerizedPath
+               , path
+               ]
