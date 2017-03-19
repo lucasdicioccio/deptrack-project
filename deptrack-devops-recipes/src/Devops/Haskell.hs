@@ -19,7 +19,7 @@ import           GHC.TypeLits           (KnownSymbol, Symbol, symbolVal)
 import           System.FilePath        ((</>))
 
 import           Devops.Binary          (Binary (..), HasBinary)
-import           Devops.Debian          (sudoRunAsInDir)
+import           Devops.Debian          (suRunAsInDir)
 import           Devops.Debian.Commands (git, stack)
 import           Devops.Debian.User     (User (..), userDirectory)
 import           Devops.Git             (GitBranch, GitRepo (..), GitUrl,
@@ -40,7 +40,10 @@ stackInstall = go Proxy
       Proxy bin -> FilePath -> DevOp (StackProject pkg) -> DevOp (Binary bin)
     go proxy installdir mkProj = do
         let bin = symbolVal proxy
-        stackRun stack (projdir <$> mkProj) (projuser <$> mkProj) [InstallIn (Text.pack bin) installdir]
+        stackRun stack
+                 (projdir <$> mkProj)
+                 (projuser <$> mkProj)
+                 [InstallIn (Text.pack bin) installdir]
         return $ (Binary $ installdir </> bin)
 
     projdir (StackProject d _) = d
@@ -67,7 +70,7 @@ stackProject url branch installDir user = do
 -- | Installs a stack package.
 stackPackage :: Name -> DevOp User -> DevOp ()
 stackPackage n user = do
-  stackRun stack (directory "/") user [Setup,Install n]
+  stackRun stack (directory "/") user [Setup, Install n]
 
 -- | Runs a list of stack commands in a directory.
 stackRun :: DevOp (Binary "stack")
@@ -93,9 +96,9 @@ stackRun mkStack mkRepo mkUser commands = devop (const ()) mkOp $ do
 runStack :: Binary x -> FilePath -> User -> StackCommand -> IO ()
 runStack s d (User u) =
   \case
-    Setup       -> sudoRunAsInDir s d (u,u) ["setup"] ""
-    Build       -> sudoRunAsInDir s d (u,u) ["build"] ""
-    Update      -> sudoRunAsInDir s d (u,u) ["update"] ""
-    (Install n) -> sudoRunAsInDir s d (u,u) ["install", Text.unpack n] ""
-    (InstallIn n path) -> sudoRunAsInDir s d (u,u) ["install", "--allow-different-user", "--local-bin-path=" <> path, Text.unpack n] ""
-    (Exec args) -> sudoRunAsInDir s d (u,u) ("exec":"--":(fmap Text.unpack args)) ""
+    Setup       -> suRunAsInDir s d u ["setup"] ""
+    Build       -> suRunAsInDir s d u ["build"] ""
+    Update      -> suRunAsInDir s d u ["update"] ""
+    (Install n) -> suRunAsInDir s d u ["install", Text.unpack n] ""
+    (InstallIn n path) -> suRunAsInDir s d u ["install", "--allow-different-user", "--local-bin-path=" <> path, Text.unpack n] ""
+    (Exec args) -> suRunAsInDir s d u ("exec":"--":(fmap Text.unpack args)) ""

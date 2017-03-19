@@ -13,6 +13,7 @@ module Devops.Debian.Base (
   -- experimental
   , postInstallHook
   , sudoRunAsInDir
+  , suRunAsInDir
   ) where
 
 import           Data.Monoid    ((<>))
@@ -101,10 +102,20 @@ type AptGetKey = KeyID
 sudoBin :: Binary "sudo"
 sudoBin = bin "/usr/bin/sudo"
 
+suBin :: Binary "su"
+suBin = bin "/bin/su"
+
 -- todo: DirectoryPresent, use User, Group
 sudoRunAsInDir :: Binary x -> FilePath -> (Name, Name) -> [String] -> String -> IO ()
 sudoRunAsInDir (Binary x) dir (user,group) args input =
     blindRunInDir sudoBin dir (["-E", "-g", Text.unpack group, "-u", Text.unpack user , "--", x] ++ args) input
+
+suRunAsInDir :: Binary x -> FilePath -> Name -> [String] -> String -> IO ()
+suRunAsInDir (Binary x) dir user args input =
+    blindRunInDir suBin dir ([Text.unpack user , "-c", cmd]) input
+  where
+    cmd = unwords $ fmap quote $ (x:args)
+    quote = id
 
 aptGetKeys :: KeyServerHostName -> KeyID -> DevOp (AptGetKey)
 aptGetKeys hostname fingerprint = devop snd mkOp $ do
