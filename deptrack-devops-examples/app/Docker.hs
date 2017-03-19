@@ -1,3 +1,6 @@
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StaticPointers    #-}
 
@@ -5,17 +8,20 @@ module Main where
 
 import           Control.Distributed.Closure
 import           Control.Monad (void)
+import           DepTrack (inject)
 import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
 import           Devops.Base (DevOp)
 import           Devops.BaseImage
+import           Devops.Binary (Binary, HasBinary)
 import           Devops.Callback
 import           Devops.Cli (defaultMain, opFromClosureB64)
 import           Devops.Debian (deb)
 import           Devops.Docker
 import           Devops.DockerBootstrap
 import           Devops.Optimize (optimizeDebianPackages)
+import           Devops.Postgre (libpqDev)
 import           Devops.Storage
 
 import           Devops.Haskell
@@ -25,7 +31,6 @@ main :: IO ()
 main = do
     args <- getArgs
     go args
-    if isMagicChrootArgv args then chrootNestedSetup else dockerSetup args
   where
     go xs | isMagicChrootArgv xs = chrootNestedSetup
           | isMagicDockerArgv xs = base64EncodedNestedSetup (drop 1 xs)
@@ -55,24 +60,21 @@ isMagicChrootArgv args = args == magicChrootArgv
 magicDockerArgv = "~~~"
 isMagicDockerArgv args = take 1 args == [magicDockerArgv]
 
-tempdir = "/opt/dockbootstrap"
+tempdir = "/opt/dockbootstrap-docker-example"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 
 dock :: SelfPath -> DevOp ()
 dock self = void $ do
     let image = dockerImage "deptrack-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
 
-    -- a typical container where we copy the file before starting
-    let mkCmd = return $ (ImportedContainerCommand (FilePresent "/usr/bin/touch") ["hello-world"])
-    container "deptrack-devops-example-container"
-              image
-              mkCmd
-
     -- a nifty callback where we pull arbitrary stuff in
-    committedImage $ dockerized "deptrack-devops-example-docker-callback"
+    let artifact = dockerized "deptrack-devops-example-docker-callback"
                (selfCallback self magicDockerArgv)
                image
                (closure $ static dockerDevOpContent)
+
+    -- committedImage artifact
+    fetchFile "/opt/postgrest-bin" artifact
   where
     chrootCallback :: CallBackMethod
     chrootCallback = BinaryCall self magicChrootArgv
@@ -85,7 +87,19 @@ chrootImageContent :: DevOp ()
 chrootImageContent = void $ do
     deb "git-core"
 
-dockerDevOpContent :: DevOp ()
-dockerDevOpContent = void $ do
+dockerDevOpContent :: DevOp FilePresent
+dockerDevOpContent = do
     deb "python3"
-    stackPackage "attoparsec" (mereUser "root")
+    binaryPresent postgrest
+
+postgrestProject :: DevOp (StackProject "postgrest")
+postgrestProject = fmap fst $ do
+    let url = "https://github.com/begriffs/postgrest.git"
+    let branch = "master"
+    let systemDependencies = libpqDev
+    stackProject url branch "git-postgrest" (mereUser "user") `inject` systemDependencies
+
+instance HasBinary (StackProject "postgrest") "postgrest" where
+
+postgrest :: DevOp (Binary "postgrest")
+postgrest = stackInstall "/home/user" postgrestProject
