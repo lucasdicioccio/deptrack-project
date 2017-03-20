@@ -148,7 +148,7 @@ _docker-image_ with `docker import` from a debootstrapped environment. To
 customized the debootstrapped environment, we used a _chroot_ exactly like we
 did in the deptrack-devops-example-qemu example. On the other hand a pair of
 _docker-container_ nodes exist. Although they look similar they actually are
-not. The `deptrack-devops-example-container` container merely builds a
+not. The `deptrack-devops-example-container-touch` container merely builds a
 container which runs a `touch hello-world` in the containerized environment.
 This is possible because we _know_ that the debootstrap chroot has installed
 the `touch` command. Sometimes, we want to couple the content of the docker
@@ -157,15 +157,20 @@ there coule be things we want to turnup but that cannot be _installed_ during
 the chroot setup (such as a running daemon). We actually can callback more
 DepTrack-Devops nodes from within the Docker container as the command to run
 when starting the container. This callback technique is implemented as the
-`deptrack-devops-example-docker-callback` in the above example. One advantage
-here is that since we create the Docker image and container, we can `docker
-copy` a binary we know ahead of time and then call this binary. This callback
-setup is pretty oblivious to the type of nodes we need to turnup (say, a Nginx
-server or anthing you can express using DepTrack DevOps). As a result, we
-provide a `dockerize` function that turn-ups arbitrary serializable DevOps from
-within Docker containers. One key advantage of this technique is that GHC (the
-Haskell compiler) will know the type of the node running in the Docker
+`deptrack-devops-example-docker-callback-build` in the above example. One
+advantage here is that since we create the Docker image and container, we can
+`docker copy` a binary we know ahead of time and then call this binary. This
+callback setup is pretty oblivious to the type of nodes we need to turnup (say,
+a Nginx server or anthing you can express using DepTrack DevOps). As a result,
+we provide a `dockerize` function that turn-ups arbitrary serializable DevOps
+from within Docker containers. One key advantage of this technique is that GHC
+(the Haskell compiler) will know the type of the node running in the Docker
 container, which can let you build complex but type-checked infrastructures.
+In this example, we build the PostGrest binary in the Docker container (using
+the same code as in the deptrack-devops-example-postgrest example, but
+copy/pasted because we organized examples so that everything is the Main
+module) and we then copy the binary outside. One could build upon this example
+to then configure PostGreSQL locally.
 
 The serialization mechanism leverages
 ![https://github.com/tweag/distributed-closure](distributed-closure) and the

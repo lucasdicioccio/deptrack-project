@@ -65,10 +65,16 @@ bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 
 dock :: SelfPath -> DevOp ()
 dock self = void $ do
-    let image = dockerImage "deptrack-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
+    let image = dockerImage "deptrack-example-image" (simpleBootstrap tempdir baseImageConfig chrootCallback)
+
+    -- a typical container where we copy the file before starting
+    let mkCmd = return $ (ImportedContainerCommand (FilePresent "/usr/bin/touch") ["hello-world"])
+    container "deptrack-devops-example-container-touch"
+              image
+              mkCmd
 
     -- a nifty callback where we pull arbitrary stuff in
-    let artifact = dockerized "deptrack-devops-example-docker-callback"
+    let artifact = dockerized "deptrack-devops-example-docker-callback-build"
                (selfCallback self magicDockerArgv)
                image
                (closure $ static dockerDevOpContent)
