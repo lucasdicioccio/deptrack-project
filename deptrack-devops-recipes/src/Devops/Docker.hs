@@ -104,7 +104,6 @@ container name mkImage mkCmd = devop fst mkOp $ do
                 (ImportedContainerCommand (FilePresent srcBin) argv) ->
                     let cb = "/devops-callback"
                         action = do
-                            putStrLn "*******copying into docker*********"
                             blindRun docker [ "cp" , srcBin
                                             , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
