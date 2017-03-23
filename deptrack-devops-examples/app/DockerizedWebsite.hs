@@ -17,9 +17,11 @@ import qualified Devops.Debian.Commands as Cmd
 import           Devops.Docker
 import           Devops.DockerBootstrap
 import           Devops.Git (GitUrl, gitClone)
+import           Devops.Networking
 import           Devops.Nginx
 import           Devops.Optimize (optimizeDebianPackages)
 import qualified Devops.StaticSite as StaticSite
+import           Devops.Service
 import           Devops.Storage
 
 import           Devops.Haskell
@@ -65,10 +67,10 @@ dock :: SelfPath -> DevOp ()
 dock self = void $ do
     let image = dockerImage "deptrack-dockerized-website-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
     -- a nifty callback where we pull arbitrary stuff in
-    dockerized "deptrack-devops-example-dockerized-website"
-               (selfCallback self magicDockerArgv)
-               image
-               (closure $ static dockerDevOpContent)
+    dockerizedDaemon "deptrack-devops-example-dockerized-website"
+                     (selfCallback self magicDockerArgv)
+                     image
+                     (closure $ static dockerDevOpContent)
   where
     chrootCallback :: CallBackMethod
     chrootCallback = BinaryCall self magicChrootArgv
@@ -81,8 +83,8 @@ chrootImageContent :: DevOp ()
 chrootImageContent = void $ do
     deb "git-core"
 
-dockerDevOpContent :: DevOp ()
-dockerDevOpContent = void $ do
+dockerDevOpContent :: DevOp (Exposed (Daemon Nginx))
+dockerDevOpContent =
     reverseProxy "/opt/rundir" nginxConfigs
 
 nginxConfigs :: [DevOp NginxServerConfig]

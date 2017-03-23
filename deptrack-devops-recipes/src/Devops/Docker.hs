@@ -8,8 +8,10 @@ module Devops.Docker (
   , Container (..)
   , ContainerCommand (..)
   , container
+  , DockerWaitMode (..)
   , Dockerized (..)
   , dockerized
+  , dockerizedDaemon
   , committedImage
   , fetchFile
   ) where
@@ -28,6 +30,7 @@ import           Devops.Callback
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.DockerBootstrap
 import           Devops.Utils
+import           Devops.Service
 import           Devops.Storage
 
 data DockerImage = DockerImage !Name
@@ -81,16 +84,21 @@ data ContainerCommand =
     ImportedContainerCommand !FilePresent [String]
   | ExistingContainerCommand !FilePath [String]
 
+data DockerWaitMode =
+    NoWait
+  | Wait
+
 -- | Spawns a container for running a command.
 -- The command is immediately started and the container is disposed only at
 -- turndown.
 --
 -- It's cid is stored in a file in /var/run/devops.
 container :: Name
+          -> DockerWaitMode
           -> DevOp DockerImage
           -> DevOp ContainerCommand
           -> DevOp Container
-container name mkImage mkCmd = devop fst mkOp $ do
+container name waitmode mkImage mkCmd = devop fst mkOp $ do
     DirectoryPresent dirPath <- directory "/var/run/devops"
     let cidFile = dirPath </> Text.unpack name <> ".le-cid"
     image@(DockerImage imageName) <- mkImage
@@ -107,6 +115,9 @@ container name mkImage mkCmd = devop fst mkOp $ do
                             blindRun docker [ "cp" , srcBin
                                             , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
+            waitAction = case waitmode of
+                NoWait -> return ()
+                Wait -> blindRun docker [ "wait" , convertString name ] ""
         in
         buildOp ("docker-container: " <> name)
                 ("creates " <> name <> " from image " <> imageName <> " with args: " <> convertString (show callbackPath) <> " " <> convertString (show args))
@@ -119,7 +130,7 @@ container name mkImage mkCmd = devop fst mkOp $ do
                                  ] ++ args )""
                  >> potentialCopy
                  >> blindRun docker [ "start" , convertString name ] ""
-                 >> blindRun docker [ "wait" , convertString name ] "")
+                 >> waitAction)
                 (blindRemoveLink cidFile
                  >> blindRun docker [ "rm" , convertString name ] "")
                 noAction
@@ -127,21 +138,51 @@ container name mkImage mkCmd = devop fst mkOp $ do
 data Dockerized a = Dockerized !a !Container
 
 -- | Continues setting up a DevOp from within a docker container.
+--
+-- This implementation waits for the container callback to terminate during
+-- turnup.
 dockerized :: Name
            -> ClosureCallBack a
            -> DevOp DockerImage
-           -> Closure (DevOp a) 
+           -> Closure (DevOp a)
            -> DevOp (Dockerized a)
 dockerized name mkCb mkImage clo = declare op $ do
     let obj = runDevOp $ unclosure clo
     (BinaryCall selfPath args) <- mkCb clo
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
-    let cbContainer = container name mkImage mkCmd
+    let cbContainer = container name Wait mkImage mkCmd
     Dockerized obj <$> cbContainer
   where
     op = buildPreOp ("dockerized-node: " <> name)
                     ("dockerize some node in the Docker image:" <> name)
+                    noCheck
+                    noAction
+                    noAction
+                    noAction
+
+-- | Sets up a Daemon in a given Docker container.
+--
+-- This implementation does not wait for the container callback to terminate
+-- during turnup (hence, a Daemon).
+--
+-- The functorial wrapper around the Daemon allows to setup networked daemons
+-- such as Listening (Daemon) from the Devops.Networking package.
+dockerizedDaemon :: Name
+                 -> ClosureCallBack (f (Daemon a))
+                 -> DevOp DockerImage
+                 -> Closure (DevOp (f (Daemon a)) )
+                 -> DevOp (Dockerized (f (Daemon a)))
+dockerizedDaemon name mkCb mkImage clo = declare op $ do
+    let obj = runDevOp $ unclosure clo
+    (BinaryCall selfPath args) <- mkCb clo
+    let selfBin = preExistingFile selfPath
+    let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
+    let cbContainer = container name NoWait mkImage mkCmd
+    Dockerized obj <$> cbContainer
+  where
+    op = buildPreOp ("dockerized-daemon: " <> name)
+                    ("dockerize and let run some node in the Docker image:" <> name)
                     noCheck
                     noAction
                     noAction

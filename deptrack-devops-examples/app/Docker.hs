@@ -70,6 +70,7 @@ dock self = void $ do
     -- a typical container where we copy the file before starting
     let mkCmd = return $ (ImportedContainerCommand (FilePresent "/usr/bin/touch") ["hello-world"])
     container "deptrack-devops-example-container-touch"
+              Wait
               image
               mkCmd
 
