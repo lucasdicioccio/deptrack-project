@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StaticPointers    #-}
+{-# LANGUAGE RankNTypes        #-}
 
 module Main where
 
@@ -8,7 +9,7 @@ import           Control.Monad (void)
 import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
-import           Devops.Base (DevOp)
+import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
 import           Devops.Cli (defaultMain, opFromClosureB64)
@@ -20,6 +21,7 @@ import           Devops.Git (GitUrl, gitClone)
 import           Devops.Networking
 import           Devops.Nginx
 import           Devops.Optimize (optimizeDebianPackages)
+import           Devops.Ref
 import qualified Devops.StaticSite as StaticSite
 import           Devops.Service
 import           Devops.Storage
@@ -49,7 +51,9 @@ main = do
     dockerSetup :: [String] -> IO ()
     dockerSetup args = do
         self <- readSelf
-        defaultMain (dock self) [optimizeDebianPackages] args
+        let f c ys = defaultMain c [optimizeDebianPackages] ys
+        let eval c = OpFunctions noCheck (f c ["up"]) (f c ["down"]) noAction
+        f (dock self eval) args
 
 readSelf :: IO SelfPath
 readSelf = takeWhile (/= '\NUL') <$> readFile "/proc/self/cmdline"
@@ -63,21 +67,30 @@ isMagicDockerArgv args = take 1 args == [magicDockerArgv]
 tempdir = "/opt/dockbootstrap-website"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops-website"
 
-dock :: SelfPath -> DevOp ()
-dock self = void $ do
+dock :: SelfPath -> Evaluator OpFunctions -> DevOp ()
+dock self eval = void $ do
     let image = dockerImage "deptrack-dockerized-website-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
     -- a nifty callback where we pull arbitrary stuff in
-    dockerizedDaemon "deptrack-devops-example-dockerized-website"
-                     (selfCallback self magicDockerArgv)
-                     image
-                     (closure $ static dockerDevOpContent)
+    let d = dockerizedDaemon "deptrack-devops-example-dockerized-website"
+                             (selfCallback self magicDockerArgv)
+                             image
+                             (closure $ static dockerDevOpContent)
+    let d' = delay (resolveDockerRemote d) (mainNginxProxy . adapt)
+    delayedEval d' eval
   where
+    adapt = fmap exposed2listening . (fmap . fmap) nginxAsWebService
     chrootCallback :: CallBackMethod
     chrootCallback = BinaryCall self magicChrootArgv
 
     baseImageConfig :: BaseImageConfig DockerBase
     baseImageConfig =
         BaseImageConfig bootstrapBin xenial
+
+mainNginxProxy :: Remoted (Listening WebService) -> DevOp (Exposed (Daemon Nginx))
+mainNginxProxy upstream = do
+    let cfgdir = "/opt/rundir" 
+    let cfg = proxyPass cfgdir "dicioccio.fr" (return upstream)
+    reverseProxy cfgdir [cfg]
 
 chrootImageContent :: DevOp ()
 chrootImageContent = void $ do

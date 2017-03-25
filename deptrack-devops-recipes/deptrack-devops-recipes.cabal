@@ -59,6 +59,7 @@ library
                   , Devops.SysQuery
                   , Devops.Utils
   build-depends:       base >= 4.7 && < 5
+                     , aeson
                      , base64-bytestring
                      , binary
                      , bytestring

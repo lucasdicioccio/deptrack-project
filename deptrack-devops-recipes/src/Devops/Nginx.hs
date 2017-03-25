@@ -19,6 +19,7 @@ module Devops.Nginx (
   , nginxWorkerUser
   , nginxMainServer
   , HostName
+  , nginxAsWebService
   -- higher-level construct
   , reverseProxy
   , proxyPass
@@ -240,9 +241,13 @@ proxyPass :: ConfigDir
           -- ^ the HTTP hostname used to match & route requests
           -> DevOp (Remoted (Listening WebService))
           -- ^ a remote service to proxy queries to (i.e., the upstream)
+          -- TODO: make it a Exposed
           -> DevOp NginxServerConfig
 proxyPass rundir hostname mkHttp = do
     (Remoted (Remote ip) (Listening port _)) <- mkHttp
     dir <- directory (rundir </> "www")
     let locs = [ NginxLocationConfig "/" (proxyPassDirectives ip port) ]
     return $ NginxServerConfig 80 hostname dir "index.html" locs
+
+nginxAsWebService :: Daemon Nginx -> WebService
+nginxAsWebService = const WebService

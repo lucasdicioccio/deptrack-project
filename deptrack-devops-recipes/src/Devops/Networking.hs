@@ -26,6 +26,7 @@ module Devops.Networking (
   , publicFacingService
   , proxyRemote , publicFacingProxy
   , existingRemote
+  , exposed2listening
   --
   , TTL
   ) where
@@ -385,5 +386,7 @@ publicFacingService mkListening = devop snd mkOp $ do
                    , "-j", "ACCEPT" ] "")
                   noAction
 
-type TTL = Int
+exposed2listening :: Exposed a -> Listening a
+exposed2listening (Exposed a b) = Listening a b
 
+type TTL = Int

@@ -1,5 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances     #-}
 
 module Devops.Docker (
     DockerImage
@@ -14,22 +17,28 @@ module Devops.Docker (
   , dockerizedDaemon
   , committedImage
   , fetchFile
+  , resolveDockerRemote
   ) where
 
 import           Control.Distributed.Closure (Closure)
 import           Control.Distributed.Closure (unclosure)
+import           Data.Aeson
 import           Data.Monoid ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
 import           DepTrack (declare)
 import           System.FilePath.Posix   ((</>))
+import           System.Process          (readProcess)
 
 import           Devops.Base
 import           Devops.BaseImage
+import           Devops.Binary
 import           Devops.Callback
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.DockerBootstrap
+import           Devops.Networking
 import           Devops.Utils
+import           Devops.Ref
 import           Devops.Service
 import           Devops.Storage
 
@@ -161,6 +170,38 @@ dockerized name mkCb mkImage clo = declare op $ do
                     noAction
                     noAction
 
+
+type DockerBridgeInfo b = String
+data DockerizedDaemon a =
+    DockerizedDaemon { _daemonVal       :: !a
+                     , _daemonContainer :: !Container
+                     , _daemonBridgeInfo:: !(Ref (DockerBridgeInfo a))
+                     }
+
+instance HasResolver (DockerBridgeInfo b) (DockerizedDaemon b, Binary docker) where
+    resolve _ (DockerizedDaemon _ _ _,Binary docker) = do
+        dat <- readProcess docker [ "network", "inspect", "bridge" ] ""
+        seq (length dat) (return $ convertString dat)
+
+resolveDockerRef :: DevOp (DockerizedDaemon a)
+                 -> DevOp (Resolver (DockerBridgeInfo a))
+resolveDockerRef service =
+    resolveRef ref ((,) <$> service <*> Cmd.docker)
+  where
+    ref = fmap _daemonBridgeInfo service
+
+resolveDockerRemote :: DevOp (DockerizedDaemon a) -> DevOp (Resolver (Remoted a))
+resolveDockerRemote mkService = do
+    (DockerizedDaemon service _ _) <- mkService
+    (fmap . fmap) (g service) (resolveDockerRef mkService)
+  where
+    g val bridgeInfo = Remoted (Remote (parseDockerIp bridgeInfo)) val
+    parseDockerIp :: DockerBridgeInfo a -> IpNetString
+    parseDockerIp = unsafeLookup . decode . convertString
+    unsafeLookup :: Maybe Value -> IpNetString
+    unsafeLookup (Just (Array _)) = "172.17.0.2" -- TODO: actually parse
+    unsafeLookup _ = error "could not decode"
+
 -- | Sets up a Daemon in a given Docker container.
 --
 -- This implementation does not wait for the container callback to terminate
@@ -172,14 +213,15 @@ dockerizedDaemon :: Name
                  -> ClosureCallBack (f (Daemon a))
                  -> DevOp DockerImage
                  -> Closure (DevOp (f (Daemon a)) )
-                 -> DevOp (Dockerized (f (Daemon a)))
+                 -> DevOp (DockerizedDaemon (f (Daemon a)))
 dockerizedDaemon name mkCb mkImage clo = declare op $ do
     let obj = runDevOp $ unclosure clo
     (BinaryCall selfPath args) <- mkCb clo
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let cbContainer = container name NoWait mkImage mkCmd
-    Dockerized obj <$> cbContainer
+    let ref = saveRef ("dockerized-daemon-ref: " <> name)
+    DockerizedDaemon obj <$> cbContainer <*> ref
   where
     op = buildPreOp ("dockerized-daemon: " <> name)
                     ("dockerize and let run some node in the Docker image:" <> name)
