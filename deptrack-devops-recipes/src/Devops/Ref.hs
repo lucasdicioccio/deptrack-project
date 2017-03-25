@@ -1,5 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE RankNTypes            #-}
 -- |Provides a kind of Key/Value store to decouple declaring references and resolving them
 module Devops.Ref where
 
@@ -14,11 +16,33 @@ type Key = Text
 -- | A textual reference of type `a`
 newtype Ref a = Ref { key :: Key }
 
-data Resolver a = Resolver { resolvedKey :: Key
-                           , resolver    :: IO a }
+data Resolver a =
+    Resolver { resolvedKey :: Key
+             , resolver    :: IO a
+             } deriving Functor
 
 instance Show (Resolver a) where
   show = unpack . resolvedKey
+
+type Evaluator b = forall a. DevOp a -> b
+
+delay :: DevOp (Resolver a) -> (a -> DevOp b) -> DevOp (Resolver (DevOp b))
+delay r f = (fmap . fmap) f r
+
+delayedEval :: Typeable a => DevOp (Resolver (DevOp a)) -> Evaluator OpFunctions -> DevOp (Resolver a)
+delayedEval mkR eval = devop fst mkOp $ do
+    r <- mkR
+    let devopIO = resolver r
+    return (Resolver (resolvedKey r) (fmap runDevOp devopIO), devopIO)
+  where
+    mkOp :: (Resolver a, IO (DevOp a)) -> Op
+    mkOp (Resolver k _, devopIO) = buildOp
+                ("delayed " <> k)
+                "delayedEval a resolved op"
+                (opCheck . eval =<< devopIO)
+                (opTurnup . eval =<< devopIO)
+                (opTurndown . eval =<< devopIO)
+                (opReload . eval =<< devopIO)
 
 -- | The class of `a` things that can be resolved in context `c`
 class HasResolver a c where
@@ -42,5 +66,3 @@ resolveRef mkRef context = devop snd mkOp $ do
             noAction
             noAction
             noAction
-
-
