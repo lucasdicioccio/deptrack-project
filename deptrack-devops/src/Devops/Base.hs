@@ -32,7 +32,6 @@ module Devops.Base (
 
 import           Control.Monad.Identity (Identity, runIdentity)
 import           Data.Hashable          (Hashable (..), hash)
-import           Data.Maybe             (catMaybes)
 import           Data.Proxy
 import           Data.Text              (Text)
 import           Data.Typeable          (TypeRep, Typeable, cast, typeOf)

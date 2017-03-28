@@ -13,6 +13,7 @@ module Devops.Graph (
   , OpGraph
   , OpStatus , opCheckResult
   , OpStatusesMap
+  , OpIntent , intentPreOp , intentDirection
   , Intents , emptyIntents
   --
   , Broadcast
@@ -26,34 +27,27 @@ module Devops.Graph (
   ) where
 
 import           Control.Concurrent           (threadDelay)
-import           Control.Concurrent.Async     (Async, async, mapConcurrently,
-                                               waitCatch)
+import           Control.Concurrent.Async     (Async, async, mapConcurrently)
 import           Control.Concurrent.STM       (STM, atomically, retry)
-import           Control.Concurrent.STM.TMVar (TMVar, newEmptyTMVar)
-import           Control.Concurrent.STM.TVar  (TVar, modifyTVar', newTVar, newTVarIO,
+import           Control.Concurrent.STM.TVar  (TVar, modifyTVar', newTVar,
                                                readTVar, readTVarIO, writeTVar)
-import           Control.Exception            (SomeException, catch)
 import           Control.Lens                 (set, view)
 import           Control.Lens.TH              (makeLenses)
-import           Control.Monad                (forever, forM, void)
-import           Control.Monad.Identity       (runIdentity)
+import           Control.Monad                (void)
 import qualified Data.Array                   as Array
 import qualified Data.Graph                   as Graph
 import           Data.Map.Strict              (Map)
 import qualified Data.Map.Strict              as Map
 import           Data.Maybe                   (fromMaybe)
 import           Data.Monoid                  ((<>))
-import qualified Data.Set                     as Set
 import qualified Data.Text                    as Text
-import           Data.Tree                    (Forest, Tree (..), rootLabel)
 import           GHC.Generics
 
-import           DepTrack                     (GraphData, buildGraph,
-                                               evalDepForest1)
-import           Devops.Base                 (CheckResult (..), DevOp, Op (..),
+import           DepTrack                     (GraphData)
+import           Devops.Base                 (CheckResult (..), Op (..),
                                                OpDescription (..),
                                                OpFunctions (..), OpUniqueId,
-                                               PreOp, preOpUniqueId, preopType,
+                                               PreOp, preOpUniqueId,
                                                runPreOp)
 
 -- | The intended direction of an operation.
@@ -166,7 +160,7 @@ asyncTurnupGraph bcast statusMap intents graph = do
     void $ traverseOpGraph statusMap intents graph go
   where
     go :: OpHandler ()
-    go preop tvar childrenTVars _ intents = do
+    go preop tvar childrenTVars _ _ = do
         let oid = preOpUniqueId preop
         let desc = opName . opDescription $ runPreOp preop
         let turnup = opTurnup $ opFunctions $ runPreOp preop
@@ -195,7 +189,7 @@ asyncTurndownGraph bcast statusMap intents graph = do
   where
     -- wait for children to be OK and continue
     go :: OpHandler ()
-    go preop tvar childrenTVars _ intents = do
+    go preop tvar childrenTVars _ _ = do
         let oid = preOpUniqueId preop
         let desc = opName . opDescription $ runPreOp preop
         let turndown = opTurndown $ opFunctions $ runPreOp preop
@@ -272,7 +266,7 @@ data DownkeepState =
 -- | Transpose a intents from a "map of historical intentions" to a "history of
 -- maps of intentions".
 snapshots :: Intents -> Stream (Map OpUniqueId OpIntent)
-snapshots = Map.traverseWithKey (\k h -> h)
+snapshots = Map.traverseWithKey (\_ h -> h)
 
 -- | Turns a graph up and keep it up.
 upkeepGraph :: Broadcast
@@ -303,21 +297,21 @@ upkeepGraph bcast statusMap intents graph upKeepFSM downKeepFSM = do
         let !reload = opReload $ opFunctions op
         let !check = opCheck $ opFunctions op
 
-        let waitUpAndStable = do
+        let waitUpAndStableFunction = do
                 print ("waiting-start: " <> desc)
                 atomically $ do
                     waitStability TurnedUp Stable childrenTVars
                     modifyTVar' tvar (set opStability Transient)
                 bcast (oid,Unknown,Transient,TurnedUp)
 
-        let waitDownAndStable = do
+        let waitDownAndStableFunction = do
                 print ("waiting-stop: " <> desc)
                 atomically $ do
                     waitStability TurnedDown Stable parentTVars
                     modifyTVar' tvar (set opStability Transient)
                 bcast (oid,Unknown,Transient,TurnedDown)
 
-        let turnupOrReload = do
+        let turnupOrReloadFunction = do
                 !status <- readTVarIO tvar
                 lastCheck <- case view opCheckResult status of
                     Unknown -> print ("pre-checking: " <> desc) >> check
@@ -329,14 +323,14 @@ upkeepGraph bcast statusMap intents graph upKeepFSM downKeepFSM = do
                     modifyTVar' tvar (set opStability Stable)
                 bcast (oid,Success,Stable,TurnedUp)
 
-        let performTurndown = do
+        let performTurndownFunction = do
                 print ("turning-down: "<> desc)
                 turndown
                 atomically $ do
                     modifyTVar' tvar (set opStability Stable)
                 bcast (oid,Success,Stable,TurnedDown)
 
-        let checkStatus = do
+        let checkStatusFunction = do
                 print ("checking: " <> desc)
                 !newCheckResult <- check
                 (_,new) <- atomically $
@@ -347,13 +341,13 @@ upkeepGraph bcast statusMap intents graph upKeepFSM downKeepFSM = do
                 return new
 
         let upFunctions = UpkeepFSMFunctions
-                waitUpAndStable
-                turnupOrReload
-                checkStatus
+                waitUpAndStableFunction
+                turnupOrReloadFunction
+                checkStatusFunction
         let downFunctions = DownkeepFSMFunctions
-                waitDownAndStable
-                performTurndown
-                checkStatus
+                waitDownAndStableFunction
+                performTurndownFunction
+                checkStatusFunction
         case direction of
                  TurnedUp   -> upKeepFSM WaitUp upFunctions
                  TurnedDown -> downKeepFSM WaitDown downFunctions
@@ -388,9 +382,6 @@ defaultDownKeepFSM = fsm
       case (view opCheckResult newStatus) of
         (Failure _) -> fsm Down xyz
         _           -> fsm Downing xyz
-
-swallowException :: Text.Text ->  SomeException -> IO ()
-swallowException desc x = print ("swallowed-exception", desc, x)
 
 -- | Computes a snapshot of an OpGraph.
 snapshot :: WantedDirection -> OpGraph -> Intents -> Intents

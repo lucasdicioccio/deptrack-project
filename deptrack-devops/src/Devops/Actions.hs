@@ -6,21 +6,12 @@ module Devops.Actions (
   , listUniqNodes
   ) where
 
-import           Control.Concurrent.Async    (Async, async, mapConcurrently,
-                                              wait)
-import           Control.Concurrent.STM      (STM, TMVar, atomically,
-                                              newEmptyTMVarIO, putTMVar,
-                                              takeTMVar)
-import           Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar,
-                                              writeTVar)
+import           Control.Concurrent.STM      (STM, atomically)
+import           Control.Concurrent.STM.TVar (TVar, readTVar)
 import           Control.Lens                (view)
-import           Control.Monad               (void)
-import qualified Data.Array                  as Array
-import           Data.Graph                  (Vertex, edges, topSort,
-                                              transposeG, vertices)
+import           Data.Graph                  (edges, transposeG, vertices)
 import           Data.Map.Strict             (Map)
 import qualified Data.Map.Strict             as Map
-import           Data.Maybe                  (catMaybes)
 import           Data.Monoid                 ((<>))
 import qualified Data.Text                   as Text
 import           Data.Tree                   (Tree (..), drawForest, flatten)
@@ -30,7 +21,7 @@ import           Text.Dot                    (Dot, edge, showDot, userNode,
 import           Devops.Graph
 import           Devops.Base                 (CheckResult (..), Op (..),
                                               OpDescription (..),
-                                              OpFunctions (..), OpUniqueId,
+                                              OpUniqueId,
                                               PreOp, opUniqueId, preOpUniqueId,
                                               runPreOp)
 
@@ -61,7 +52,7 @@ checkStatuses :: OpGraph -> IO (Map OpUniqueId CheckResult)
 checkStatuses graph = do
     let s = snapshot TurnedUp graph emptyIntents
     statuses <- atomically $ makeStatusesMap s
-    checkWholeGraph noBroadcast statuses s graph
+    _ <- checkWholeGraph noBroadcast statuses s graph
     atomically $ extractStatuses statuses
   where
     extractStatuses :: OpStatusesMap -> STM (Map OpUniqueId CheckResult)
