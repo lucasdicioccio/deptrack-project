@@ -186,22 +186,26 @@ nating binaries internet lan = devop id mkOp $ do
             ("linux-ip-network-address-translation: " <> interfaceName b <> " via " <> interfaceName a)
             ("ensures that Linux NAT is enabled")
             (checkBinaryExitCodeAndStdout null i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-C", "POSTROUTING"
                    , "-o", Text.unpack $ interfaceName a
                    , "-j", "MASQUERADE" ] "")
             (blindRun i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-I", "POSTROUTING"
                    , "-o", Text.unpack $ interfaceName a
                    , "-j", "MASQUERADE" ] ""
              >> blindRun i [
-                     "-I", "FORWARD"
+                     "-w"
+                   , "-I", "FORWARD"
                    , "-i", Text.unpack $ interfaceName b
                    , "-o", Text.unpack $ interfaceName a
                    , "-j", "ACCEPT" ] ""
              >> blindRun i [
-                     "-I", "FORWARD"
+                     "-w"
+                   , "-I", "FORWARD"
                    , "-i", Text.unpack $ interfaceName a
                    , "-o", Text.unpack $ interfaceName b
                    , "-m", "state"
@@ -209,17 +213,20 @@ nating binaries internet lan = devop id mkOp $ do
                    , "-j", "ACCEPT" ] ""
             )
             (blindRun i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-D", "POSTROUTING"
                    , "-o", Text.unpack $ interfaceName a
                    , "-j", "MASQUERADE" ] ""
              >> blindRun i [
-                     "-D", "FORWARD"
+                     "-w"
+                   , "-D", "FORWARD"
                    , "-i", Text.unpack $ interfaceName b
                    , "-o", Text.unpack $ interfaceName a
                    , "-j", "ACCEPT" ] ""
              >> blindRun i [
-                     "-D", "FORWARD"
+                     "-w"
+                   , "-D", "FORWARD"
                    , "-i", Text.unpack $ interfaceName a
                    , "-o", Text.unpack $ interfaceName b
                    , "-m", "state"
@@ -300,21 +307,24 @@ proxyRemote publicPort mkInternet mkRemote = devop snd mkOp $ do
                buildOp (Text.pack $ printf "proxied-service: %s:%d to %s:%d" (Text.unpack publicIp) publicPort (Text.unpack ip) machinePort)
                   ("setups port-mapping between public ip/port and private ip/port")
                   (checkBinaryExitCodeAndStdout null i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-C", "PREROUTING"
                    , "-i", Text.unpack $ interfaceName a
                    , "-p", "tcp", "--dport", show publicPort
                    , "-j", "DNAT"
                    , "--to", printf "%s:%d" (Text.unpack ip) machinePort ] "")
                   (blindRun i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-I", "POSTROUTING"
                    , "-o", Text.unpack $ interfaceName a
                    , "-p", "tcp", "--sport", show machinePort
                    , "-j", "SNAT"
                    , "--to", Text.unpack publicIp ] ""
                   >> blindRun i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-I", "PREROUTING"
                    , "-i", Text.unpack $ interfaceName a
                    , "-p", "tcp", "--dport", show publicPort
@@ -322,14 +332,16 @@ proxyRemote publicPort mkInternet mkRemote = devop snd mkOp $ do
                    , "--to", printf "%s:%d" (Text.unpack ip) machinePort ] ""
                   )
                   (blindRun i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-D", "POSTROUTING"
                    , "-o", Text.unpack $ interfaceName a
                    , "-p", "tcp", "--sport", show machinePort
                    , "-j", "SNAT"
                    , "--to", Text.unpack $ publicIp ] ""
                   >> blindRun i [
-                     "-t", "nat"
+                     "-w"
+                   , "-t", "nat"
                    , "-D", "PREROUTING"
                    , "-i", Text.unpack $ interfaceName a
                    , "-p", "tcp", "--dport", show publicPort
@@ -350,15 +362,18 @@ publicFacingProxy mkProxy = devop snd mkOp $ do
                buildOp (Text.pack $ printf "exposed-port: %d" publicPort)
                   ("opens port on the firewall")
                   (checkBinaryExitCodeAndStdout null i [
-                     "-C", "FORWARD"
+                     "-w"
+                   , "-C", "FORWARD"
                    , "-p", "tcp", "--dport", show port
                    , "-j", "ACCEPT" ] "")
                   (blindRun i [
-                     "-I", "FORWARD"
+                     "-w"
+                   , "-I", "FORWARD"
                    , "-p", "tcp", "--dport", show port
                    , "-j", "ACCEPT" ] "")
                   (blindRun i [
-                     "-D", "FORWARD"
+                     "-w"
+                   , "-D", "FORWARD"
                    , "-p", "tcp", "--dport", show port
                    , "-j", "ACCEPT" ] "")
                   noAction
@@ -373,15 +388,18 @@ publicFacingService mkListening = devop snd mkOp $ do
                buildOp (Text.pack $ printf "exposed-port: %d" port)
                   ("opens port on the firewall")
                   (checkBinaryExitCodeAndStdout null i [
-                     "-C", "INPUT"
+                     "-w"
+                   , "-C", "INPUT"
                    , "-p", "tcp", "--dport", show port
                    , "-j", "ACCEPT" ] "")
                   (blindRun i [
-                     "-I", "INPUT"
+                     "-w"
+                   , "-I", "INPUT"
                    , "-p", "tcp", "--dport", show port
                    , "-j", "ACCEPT" ] "")
                   (blindRun i [
-                     "-D", "INPUT"
+                     "-w"
+                   , "-D", "INPUT"
                    , "-p", "tcp", "--dport", show port
                    , "-j", "ACCEPT" ] "")
                   noAction
