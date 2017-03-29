@@ -120,11 +120,12 @@ newQemuVm :: (RunDir,RepoDir)
           -> Index
           -> RAM
           -> Int
+          -> DevOp Interface
           -> [DiskFile]
           -> DevOp (Daemon QemuVM)
-newQemuVm env@(rundir,repo) plan idx ram cpuCount backingChain = do
+newQemuVm env@(rundir,repo) plan idx ram cpuCount mkIface backingChain = do
     let disk = newHeadFromBackingChain (rundir,repo) idx backingChain
-    qemuVm env plan idx ram cpuCount disk
+    qemuVm env plan idx ram cpuCount mkIface disk
 
 -- | Creates a new QemuVM using a snapshot consisting of a list of DiskFiles.
 -- DiskFiles in this case are files present in the RepoDir.
@@ -135,11 +136,12 @@ existingQemuVm :: (RunDir,RepoDir)
                -> Index
                -> RAM
                -> Int
+               -> DevOp Interface
                -> [DiskFile]
                -> DevOp (Daemon QemuVM)
-existingQemuVm env@(rundir,repo) plan idx ram cpuCount backingChain = do
+existingQemuVm env@(rundir,repo) plan idx ram cpuCount mkIface backingChain = do
     let disk = savedHeadfromBackingChain (rundir,repo) idx backingChain
-    qemuVm env plan idx ram cpuCount disk
+    qemuVm env plan idx ram cpuCount mkIface disk
 
 -- | Spawns a QemuVm from a base image.
 baseImageQemuVm :: (RunDir,RepoDir)
@@ -147,11 +149,12 @@ baseImageQemuVm :: (RunDir,RepoDir)
        -> Index
        -> RAM
        -> Int
+       -> DevOp Interface
        -> DevOp (BaseImage QemuBase)
        -> DevOp (Daemon QemuVM)
-baseImageQemuVm env@(rundir,_) plan idx ram cpuCount boot = do
+baseImageQemuVm env@(rundir,_) plan idx ram cpuCount mkIface boot = do
     let disk = newDiskFromBaseImage rundir idx boot
-    qemuVm env plan idx ram cpuCount disk
+    qemuVm env plan idx ram cpuCount mkIface disk
 
 newDiskFromBaseImage :: RunDir -> Index -> DevOp (BaseImage QemuBase) -> DevOp QemuDisk
 newDiskFromBaseImage rundir idx mkBase = do
@@ -166,13 +169,14 @@ qemuVm :: (RunDir,RepoDir)
        -> RAM
        -> Index
        -> Int
+       -> DevOp Interface
        -> DevOp QemuDisk
        -> DevOp (Daemon QemuVM)
-qemuVm (rundir,_) plan idx ram cpuCount mkdisk = do
+qemuVm (rundir,_) plan idx ram cpuCount mkIface mkdisk = do
   daemon ("qemu-" <> Text.pack (show idx)) (Just qemuUserKvmGroup) qemux86 qemuCommandArgs $ do
     _ <- traverse deb ["qemu", "qemu-kvm"]
     disk <- mkdisk
-    (dhcp, (tap0, br)) <- vmNetwork rundir idx plan
+    (dhcp, (tap0, br)) <- vmNetwork rundir idx plan mkIface
     let ip = fixedIp plan idx
     return (idx, ip, fixedMac plan idx, dhcp, br, tap0, ram, cpuCount, disk)
 
@@ -188,14 +192,15 @@ tapN idx = let tapName = Text.pack (printf "tap%d" idx) in
 
 vmNetwork :: RunDir
           -> Index
-          -> AddressPlan -- TODO: also pass the eth0/br0 decisions in the plan
+          -> AddressPlan
+          -> DevOp Interface
           -> DevOp (Daemon DHCP, BridgedInterface)
-vmNetwork rundir idx plan = declare (noop ("~networking: " <> Text.pack (show idx)) "example network config") $ do
+vmNetwork rundir idx plan iface = declare (noop ("~networking: " <> Text.pack (show idx)) "example network config") $ do
   -- enable IP forwarding
   _ <- ipForwarding
   -- setup some interfaces
   (t,br,_) <- bridgedInterface (TapIface <$> tapN idx) br0 ((,) <$> brctl <*> binIp)
-  _ <- nating iptables eth0 (BridgeIface <$> br0)
+  _ <- nating iptables iface (BridgeIface <$> br0)
   -- start networking services
   let localDnsDaemon = dnsResolver rundir plan googlePublicDns
   let dns = fmap listeningDnsResolverDaemon localDnsDaemon

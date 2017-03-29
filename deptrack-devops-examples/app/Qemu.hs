@@ -50,7 +50,7 @@ imgSize = 20
 imgSuperUser = "superuser"
 
 vm :: Self -> PubkeyContent -> DevOp (Daemon QemuVM)
-vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus disk
+vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus eth0 disk
   where
     disk :: DevOp QemuDisk
     disk = newDiskFromBaseImage rundir index baseImage
