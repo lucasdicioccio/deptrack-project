@@ -14,6 +14,7 @@ import qualified Data.Text               as Text
 import           System.FilePath.Posix   ((</>))
 import           Text.Printf             (printf)
 
+import           Devops.Apparmor
 import           Devops.Debian.Commands
 import           Devops.Debian.User
 import           Devops.Networking
@@ -234,6 +235,7 @@ dnsResolver rundir plan mkForwarder = daemon "bind9" Nothing bind9 dnsResolverCo
   cfgFile <- mkBind9ConfigFile rundir plan bind9dir config
   dataFiles <- mkBind9ZoneFiles rundir bind9dir (fmap bind9Zones config)
   u <- bind9User
+  _ <- reloadApparmor (apparmorConfig bind9dir)
   return (u,cfgFile,dataFiles)
 
 listeningDnsResolverDaemon :: Daemon DnsResolver -> Listening DnsService
@@ -245,3 +247,15 @@ port53 = 53
 -- | One of the Google PublicDNS resolver IP address.
 googlePublicDns :: DevOp DnsForwarder
 googlePublicDns = Remoted <$> existingRemote "8.8.4.4" <*> pure (Listening port53 DnsService)
+
+apparmorConfig :: DevOp DirectoryPresent -> DevOp FilePresent
+apparmorConfig mkDir = do
+    (DirectoryPresent pathDir) <- mkDir
+    let apparmorConfigPath = "/etc/apparmor.d/local/usr.sbin.named"
+    let mainCfgPath = "/etc/apparmor.d/usr.sbin.named"
+    let dat = convertString $ apparmorContent pathDir
+    _ <- fileContent apparmorConfigPath (pure dat)
+    return $ FilePresent mainCfgPath
+  where
+    apparmorContent :: FilePath -> Text
+    apparmorContent confPath = Text.unlines [ Text.pack confPath <> "/** r," ]
