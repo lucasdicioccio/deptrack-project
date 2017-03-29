@@ -4,10 +4,12 @@
 
 module Devops.Dhcp where
 
+import qualified Data.ByteString       as ByteString
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
+import           DepTrack                (declare)
 import           System.FilePath.Posix   ((</>))
 import           Text.Printf             (PrintfType, printf)
 
@@ -85,6 +87,19 @@ dhcpCommanArgs :: DaemonConfig DHCP -> CommandArgs
 dhcpCommanArgs (FilePresent path, iface) =
   ["-f", "-cf", path, Text.unpack $ interfaceName iface]
 
+-- | Deletes the leases and leases~ files because they sometime hurt after a
+-- crash+restart.
+trashDhcpLeases :: DevOp ()
+trashDhcpLeases = declare mkOp (return ())
+  where
+    mkOp = buildPreOp ("trash-dhcp-leases") ("deletes the dhcp-leases file")
+                   noCheck
+                   (blindRemoveLink "/var/lib/dhcp/dhcpd.leases"
+                   >> blindRemoveLink "/var/lib/dhcp/dhcpd.leases~"
+                   >> ByteString.writeFile "/var/lib/dhcp/dhcpd.leases" "")
+                   noAction
+                   noAction
+
 -- | Spawns the server.
 dhcpServer :: RunDir
            -> AddressPlan
@@ -96,6 +111,7 @@ dhcpServer rundir plan mkDns br = daemon "dhcpd" Nothing dhcpd dhcpCommanArgs $ 
   let (!txtConfig) = convertString (dhcpConfiguration plan dns)
   (_,fp) <- fileContent (rundir </> "dhcp-alt.conf") (pure $ txtConfig)
   _ <- reloadApparmor (apparmorConfig fp)
+  _ <- trashDhcpLeases
   let ipnet = ipNetString (localhostIp plan) (prefixLenString plan)
   (ConfiguredInterface _ iface) <- (configuredInterface ipnet (BridgeIface <$> br) binIp)
   return (fp,iface)
