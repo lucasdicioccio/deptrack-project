@@ -31,6 +31,9 @@ debootstrap = debianPackage
 dockerEngine :: DevOp (DebianPackage "docker-engine")
 dockerEngine = generalDebianPackage "docker-engine" Repos.docker
 
+dotnetCore :: DevOp (DebianPackage "dotnet-dev")
+dotnetCore = generalDebianPackage "dotnet-dev-1.0.1" Repos.dotnet
+
 e2fsprogs :: DevOp (DebianPackage "e2fsprogs")
 e2fsprogs = debianPackage
 

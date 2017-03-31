@@ -34,6 +34,9 @@ debootstrap = binary `installedWith` Pkg.debootstrap
 docker :: DevOp (Binary "docker")
 docker = binary `installedWith` Pkg.dockerEngine
 
+dotnet :: DevOp (Binary "dotnet")
+dotnet = binary `installedWith` Pkg.dotnetCore
+
 dhcpd :: DevOp (Binary "/usr/sbin/dhcpd")
 dhcpd = binary `installedWith` Pkg.iscDhcpServer
 

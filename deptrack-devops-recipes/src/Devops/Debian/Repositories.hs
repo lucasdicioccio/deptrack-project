@@ -41,6 +41,13 @@ jenkins = do
   let keys = aptGetKeys "keyserver.ubuntu.com" "D50582E6"
   DebianRepository <$> repo <*> keys
 
+dotnet :: DevOp DebianRepository
+dotnet = do
+    let url = "https://apt-mo.trafficmanager.net/repos/dotnet-release/"
+    let repo = sourceRepository "dotnet" url (Right (xenial,"main"))
+    let keys = aptGetKeys "keyserver.ubuntu.com" "417A0893"
+    DebianRepository <$> repo <*> keys
+
 docker :: DevOp DebianRepository
 docker = do
     let url = "https://apt.dockerproject.org/repo"
