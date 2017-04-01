@@ -28,7 +28,7 @@ type FileContent = ByteString
 
 data FilePresent = FilePresent { getFilePresentPath :: !FilePath }
 
-data DirectoryPresent = DirectoryPresent !FilePath
+data DirectoryPresent = DirectoryPresent { getDirectoryPresentPath :: !FilePath }
   deriving Show
 
 type SHA1 = String -- TODO: improve
