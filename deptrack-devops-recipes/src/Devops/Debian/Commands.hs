@@ -2,7 +2,7 @@
 
 module  Devops.Debian.Commands where
 
-import           Devops.Binary          (Binary, binary)
+import           Devops.Binary          (Binary, binary, bin)
 import           Devops.Debian.Base     (installedWith)
 import qualified Devops.Debian.Packages as Pkg
 import           Devops.Base           (DevOp)
@@ -35,7 +35,7 @@ docker :: DevOp (Binary "docker")
 docker = binary `installedWith` Pkg.dockerEngine
 
 dotnet :: DevOp (Binary "dotnet")
-dotnet = binary `installedWith` Pkg.dotnetCore
+dotnet = pure (bin "/usr/bin/dotnet") `installedWith` Pkg.dotnetCore
 
 dhcpd :: DevOp (Binary "/usr/sbin/dhcpd")
 dhcpd = binary `installedWith` Pkg.iscDhcpServer
