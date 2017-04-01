@@ -1,14 +1,18 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE KindSignatures    #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE RankNTypes        #-}
 
 module Devops.App where
 
-import           Data.Proxy   (Proxy (..))
-import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import           GHC.TypeLits (Symbol, KnownSymbol)
 
 import           Devops.Base
 import           Devops.Binary
+import           Devops.Debian.User (User, Group)
 import           Devops.Utils
+import           Devops.Service
+import           Devops.Storage
 
 -- | An runtime-based App tagged with symbols.
 --
@@ -16,28 +20,35 @@ import           Devops.Utils
 -- applications (e.g., Java, DotNet) or frameworks (e.g., Rails), the feature
 -- of having a runtime an application is common enough to warrant some extra
 -- typing and unifying functions/typeclasses.
-data App (runtime :: Symbol) (b :: Symbol) = App (Binary runtime) !FilePath
+data App (runtime :: Symbol) (b :: Symbol) =
+    App { appBinary :: !(Binary runtime)
+        , appName   :: !Name
+        , appDir    :: !DirectoryPresent
+        }
 
-app :: Binary a -> FilePath -> App a b
-app b path = App b path
-
-appPath :: App a b -> FilePath
-appPath (App _ x) = x
-
-appBinary :: App a b -> Binary a
-appBinary (App a _) = a
+app :: Name -> Binary a -> DirectoryPresent -> App a b
+app n b path = App b n path
 
 -- | An application for which information is passed as type arguments.
-application :: (KnownSymbol b) => DevOp (Binary a) -> DevOp (App a b)
-application runtime = f Proxy <$> runtime
-  where
-    f :: (KnownSymbol b) => Proxy b -> Binary a -> App a b
-    f proxy b = app b (symbolVal proxy)
+application :: Name -> DevOp (Binary a) -> DevOp DirectoryPresent -> DevOp (App a b)
+application proj runtime dir = app proj <$> runtime <*> dir
 
 -- | A command for an application.
-type AppCommand (a :: Symbol) = FilePath -> [String]
+type AppCommand runtime a = App runtime a -> [String]
 
 -- | Runs a command in an applcation.
-runApp :: App a b -> AppCommand a -> IO ()
+runApp :: App a b -> AppCommand a b -> IO ()
 runApp a cmd =
-    blindRunInDir (appBinary a) (appPath a) (cmd $ appPath a) ""
+    blindRunInDir (appBinary a) (getDirectoryPresentPath $ appDir a) (cmd a) ""
+
+type instance DaemonConfig (App a b) = (App a b, AppCommand a b)
+
+daemonizeApp :: (KnownSymbol a, KnownSymbol b)
+             => Name
+             -> DevOp (App a b)
+             -> AppCommand a b
+             -> Maybe (DevOp (User, Group))
+             -> DevOp (Daemon (App a b))
+daemonizeApp name mkApp cmd mkUserGroup = do
+    let mkBinary = fmap appBinary mkApp
+    daemon name mkUserGroup mkBinary (\(x,f) -> f x) ((,) <$> mkApp <*> return cmd)
