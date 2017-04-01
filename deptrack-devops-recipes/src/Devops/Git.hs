@@ -19,8 +19,11 @@ import           Devops.Base
 type GitUrl = Text
 type GitBranch = Text
 type GitPath = Text
-data GitRepo = GitRepo !DirectoryPresent !GitPath !Name
-  deriving Show
+data GitRepo =
+    GitRepo { gitDir      :: !DirectoryPresent
+            , gitRemote   :: !GitPath
+            , gitRepoName :: !Name
+            } deriving Show
 
 gitClone :: GitPath -> Name -> DevOp (Binary "git") -> DevOp DirectoryPresent -> DevOp GitRepo
 gitClone path branch mkGit mkDir = devop snd mkOp $ do

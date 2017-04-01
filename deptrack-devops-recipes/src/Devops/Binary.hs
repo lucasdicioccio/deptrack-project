@@ -12,6 +12,9 @@ import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 
 import           Devops.Base
 
+-- | A Binary tagged with a symbol.
+--
+-- The type tag can help passing application names in the type system.
 data Binary (c :: Symbol) = Binary !FilePath
 
 bin :: FilePath -> Binary c

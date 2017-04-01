@@ -17,12 +17,14 @@ library
   hs-source-dirs:      src
   ghc-options:         -Wall -Werror
   exposed-modules:  Devops.Archive
+                  , Devops.App
                   , Devops.Apparmor
                   , Devops.Authentication
                   , Devops.BaseImage
                   , Devops.Binary
                   , Devops.Docker
                   , Devops.DockerBootstrap
+                  , Devops.DotNetCore
                   , Devops.Callback
                   , Devops.Debian
                   , Devops.Debian.Base
