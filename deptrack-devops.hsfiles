@@ -22,7 +22,6 @@ library
                      , deptrack-core
                      , deptrack-devops
                      , deptrack-devops-recipes
-                     , deptrack-devops-examples
   default-language:    Haskell2010
 
 executable {{name}}-exe
@@ -34,7 +33,6 @@ executable {{name}}-exe
                      , deptrack-core
                      , deptrack-devops
                      , deptrack-devops-recipes
-                     , deptrack-devops-examples
   default-language:    Haskell2010
 
 test-suite {{name}}-test
@@ -46,7 +44,6 @@ test-suite {{name}}-test
                      , deptrack-core
                      , deptrack-devops
                      , deptrack-devops-recipes
-                     , deptrack-devops-examples
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
@@ -69,12 +66,10 @@ packages:
     - deptrack-core
     - deptrack-devops
     - deptrack-devops-recipes
-    - deptrack-devops-examples
   extra-dep: true
 extra-deps:
 - 'deptrack-devops-0.1.0.0'
 - 'deptrack-devops-recipes-0.1.0.0'
-- 'deptrack-devops-examples-0.1.0.0'
 - 'dotgen-0.4.2'
 flags: {}
 extra-package-dbs: []

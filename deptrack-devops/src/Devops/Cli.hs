@@ -1,4 +1,3 @@
-
 -- | Building-block methods to build a command-line tool able to inspect and
 -- turnup/turndown DevOps.
 module Devops.Cli (
@@ -87,3 +86,4 @@ defaultMain devop optimizations = go
                     , "  Available arguments:"
                     , "    up, down, upkeep, print, dot, check-dot, list"
                     ]
+
