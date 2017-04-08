@@ -4,6 +4,9 @@ packages:
 - 'deptrack-core'
 - 'deptrack-devops'
 - 'deptrack-devops-recipes'
+- 'deptrack-devops-examples'
+# pending proper deployment to hackage
+- 'system-extra'
 extra-deps:
 - 'dotgen-0.4.2'
-resolver: lts-7.15
+resolver: lts-8.8
