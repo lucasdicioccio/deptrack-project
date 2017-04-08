@@ -135,3 +135,17 @@ executable deptrack-devops-example-jenkins
                      , deptrack-devops-recipes
   default-language:    Haskell2010
 
+executable deptrack-devops-example-do-droplet
+  hs-source-dirs:      app
+  main-is:             SampleDODroplet.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , containers
+                     , deptrack-core
+                     , deptrack-devops
+                     , deptrack-devops-examples
+                     , deptrack-devops-recipes
+                     , hdo
+                     , text
+  default-language:    Haskell2010
+
