@@ -9,4 +9,5 @@ packages:
 - 'system-extra'
 extra-deps:
 - 'dotgen-0.4.2'
+- 'hdo-0.3'
 resolver: lts-8.8
