@@ -19,10 +19,12 @@ import           Devops.Ref
 import           Network.DO
 import           System.Environment        (getArgs)
 
-sampleDONode :: String -> DevOp ParasitedHost
-sampleDONode dropletName =
+theDroplet dropletName = standardDroplet { configName = dropletName, keys = [2118791] }
+
+sampleDONode :: Bool -> String -> DevOp ParasitedHost
+sampleDONode debug dropletName =
   let exe      = "deptrack-devops-example-do-droplet"
-      host     = droplet (standardDroplet { configName = dropletName, keys = [429079] })
+      host     = droplet debug $ theDroplet dropletName
       root     = preExistingUser "root"
       built    = build ubuntu14_04 ".." exe
       doref    = saveRef (pack dropletName)
@@ -33,5 +35,7 @@ sampleDONode dropletName =
 main :: IO ()
 main = do
   host:args <- getArgs
-  defaultMain (sampleDONode  host)  [optimizeDebianPackages] args
+  case args of
+    "-v":args' -> defaultMain (sampleDONode True host)  [optimizeDebianPackages] args'
+    args'      -> defaultMain (sampleDONode False host)  [optimizeDebianPackages] args'
 

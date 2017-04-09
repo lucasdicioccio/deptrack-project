@@ -28,7 +28,7 @@ type instance NodeConfig DOcean = DOcean
 deriving instance Show (Node DOcean)
 
 instance HasResolver Remote (Node DOcean) where
-  resolve k _ = runDOAuth $ do
+  resolve k _ = runDOAuth False $ do
     -- assume k is the name of the droplet to resolve
     droplets <- mapMaybe publicIP . findByIdOrName (unpack k) <$> listDroplets
     case droplets of
@@ -48,34 +48,37 @@ standardDroplet = BoxConfiguration "deptrack-default" (RegionSlug "ams2") G1 def
 -- | Describe a dependency on a DOcean droplet instance.
 --
 -- TODO: uniqueness of config?
-droplet :: BoxConfiguration -> DevOp (Node DOcean)
-droplet conf@BoxConfiguration{..} = devop id mkOp (pure $ Node $ DOcean conf)
+droplet :: Bool -> BoxConfiguration -> DevOp (Node DOcean)
+droplet debug conf@BoxConfiguration{..} = devop id mkOp (pure $ Node $ DOcean conf)
   where
     mkOp _ = buildOp
       ("Digital Ocean droplet: " <> pack configName)
       ("creates DO droplet with configuration: " <> pack (show conf))
-      (checkDropletExists configName)
-      (startDroplet conf)
-      (killDroplet configName)
+      (checkDropletExists debug configName)
+      (startDroplet debug conf)
+      (killDroplet debug configName)
       noAction
 
 -- * DO Utilities
 
-startDroplet :: BoxConfiguration -> OpAction
-startDroplet conf = runDOAuth $ (createDroplet conf) >>= either (fail . show) (const $ return ())
+startDroplet :: Bool -> BoxConfiguration -> OpAction
+startDroplet debug conf = runDOAuth debug $ (createDroplet conf) >>= either (fail . show) (const $ return ())
 
-checkDropletExists :: String -> OpCheck
-checkDropletExists dname = runDOAuth $ withDroplet dname $
+checkDropletExists :: Bool -> String -> OpCheck
+checkDropletExists debug dname = runDOAuth debug $ withDroplet dname $
   maybe (return $ Failure $ "no droplet with name " <> dname) (const $ return Success)
 
-killDroplet :: String -> OpAction
-killDroplet dname = void $ runDOAuth $
+killDroplet :: Bool -> String -> OpAction
+killDroplet debug dname = void $ runDOAuth debug $
   withDroplet dname $ maybe (return Nothing) (destroyDroplet . dropletId)
 
 withDroplet :: String -> (Maybe Droplet -> Command IO a) -> Command IO a
 withDroplet dropletName f = (findByIdOrName dropletName <$> listDroplets) >>= f . listToMaybe
 
-runDOAuth :: Command IO a -> IO a
-runDOAuth command = do
+runDOAuth :: Bool -> Command IO a -> IO a
+runDOAuth True command = do
+  auth <- getAuthFromEnv
+  runDODebug command auth
+runDOAuth False command = do
   auth <- getAuthFromEnv
   runDO command auth

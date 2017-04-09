@@ -30,10 +30,10 @@ class HasDockerImage b where
   dockerImage :: b -> ImageName
 
 instance HasDockerImage (Build 'Ubuntu14_04) where
-  dockerImage _ = ImageName "haskell:7.10.3"
+  dockerImage _ = ImageName "haskell:8.0.2"
 
 instance HasDockerImage (Build 'Ubuntu16_04) where
-  dockerImage _ = ImageName "haskell/xenial:7.10.3"
+  dockerImage _ = ImageName "haskell/xenial:8.0.2"
 
 build :: (Typeable o, HasDockerImage (Build o)) => Proxy o -> FilePath -> BuildTarget -> DevOp (Build o)
 build _ sourceDir buildTarget = devop snd mkOp $ do
