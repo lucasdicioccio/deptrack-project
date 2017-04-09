@@ -1,3 +1,6 @@
 [submodule "system-extra"]
 	path = system-extra
 	url = https://github.com/abailly/system-extra.git
+[submodule "hdo"]
+	path = hdo
+	url = git@github.com:abailly/hdo
