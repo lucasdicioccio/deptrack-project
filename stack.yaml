@@ -7,8 +7,7 @@ packages:
 - 'deptrack-devops-examples'
 # pending proper deployment to hackage
 - 'system-extra'
-- 'hdo'
 extra-deps:
 - 'dotgen-0.4.2'
-# - 'hdo-0.3'
+- 'hdo-0.4'
 resolver: lts-8.8
