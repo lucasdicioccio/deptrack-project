@@ -45,12 +45,12 @@ import           System.FilePath
 exe    = "deptrack-devops-example-spark"
 root   = preExistingUser "root"
 allIps = "0.0.0.0"
-dropletConfig =  standardDroplet { size = G2, configImageSlug = ubuntuXenialSlug, keys = [2118791] }
+dropletConfig key=  standardDroplet { size = G2, configImageSlug = ubuntuXenialSlug, keys = [key] }
 sparkDistributionURL = "http://d3kbcqa49mib13.cloudfront.net/spark-1.6.1-bin-hadoop2.6.tgz"
 
-parasitedHost :: String -> DevOp ParasitedHost
-parasitedHost dropletName = do
-  let host     = droplet False (dropletConfig { configName = dropletName } )
+parasitedHost :: String -> Int -> DevOp ParasitedHost
+parasitedHost dropletName key = do
+  let host     = droplet False ((dropletConfig key) { configName = dropletName } )
       built    = build ubuntu16_04 ".." exe
       doref    = saveRef (pack dropletName)
       resolved = resolveRef doref host
@@ -175,10 +175,10 @@ sparkSlave remoteMaster host =
 
   in fst <$> inject (remotedWith slaveConfig root remoteSlave host) remoteMaster
 
-sparkCluster :: Int -> String -> DevOp ()
-sparkCluster numberOfSlaves baseName = do
-  let masterHost      = parasitedHost $ baseName <> "-master"
-      slaveHosts      = map (\ i -> parasitedHost (baseName <> "-slave-" <> show i)) [1 .. numberOfSlaves]
+sparkCluster :: Int -> String -> Int -> DevOp ()
+sparkCluster numberOfSlaves baseName key = do
+  let masterHost      = parasitedHost (baseName <> "-master") key
+      slaveHosts      = map (\ i -> parasitedHost (baseName <> "-slave-" <> show i) key) [1 .. numberOfSlaves]
       sparkMasterHost = sparkMaster masterHost
   void $ traverse (sparkSlave sparkMasterHost) slaveHosts
 
@@ -197,5 +197,5 @@ main = do
     base64EncodedNestedSetup _ = Prelude.error "invalid args for magic docker callback"
 
     localSetup :: [String] -> IO ()
-    localSetup (numSlaves:baseName:args) =
-      defaultMain (sparkCluster (read numSlaves) baseName)  [optimizeDebianPackages] args
+    localSetup (numSlaves:baseName:key:args) =
+      defaultMain (sparkCluster (read numSlaves) baseName (read key))  [optimizeDebianPackages] args

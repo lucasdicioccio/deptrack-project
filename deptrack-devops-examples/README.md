@@ -179,3 +179,39 @@ StaticPointers GHC extension.
 The code in `app/Docker.hs` is laid out to show the two various callback
 mechanisms (in the chroot: we use a hardcoded path into the code; whereas in
 docker: we interpret a Base64-encode closure that was passed before).
+
+# deptrack-devops-example-spark
+
+This example deploys a fresh and working [Apache Spark](http://spark.apache.org) cluster on DigitalOcean infrastructure.
+
+## Usage
+
+This example requires that: 
+
+* You have a working [docker]() installation locally. When you run the executable `deptrack-devops-example-spark` you should have the rights to run `docker run ...`,
+* You have a [DigitalOcean](http://digitalocean.com) account and expose an API token in an environment variable `AUTH_TOKEN`.
+
+To build a cluster with 1 master and 2 slaves, run:
+
+    $ deptrack-devops-example-spark 2 spark-cluster 1234567 up
+
+where `spark-cluster` is the base name for creating the droplets and `1234567` is the DO key reference to set on created droplets to allow SSH access.
+
+If all goes well, this will:
+
+1. create 3 droplets on DO named `spark-cluster-master`, `spark-cluster-slave-1` and `spark-cluster-slave-2`,
+2. build the executable for linux x64 architecture using a [docker container](https://hub.docker.com/_/haskell/),
+3. upload the built executable on the droplets,
+4. run the executable remotely to complete configuration of the hosts.
+
+Assuming the master droplet has IP 1.2.3.4 you can then point your browser to http://1.2.3.4:8080/ and you should have access to Spark's dashboard and console.
+
+## Details 
+
+The output of `dot -Tpng -o deptrack-devops-example-spark.png <( deptrack-devops-example-spark spark-cluster 2 123456 dot )`
+is as follows:
+![graph of deptrack-devops-example-spark dependencies](deptrack-devops-example-spark.png)
+
+This graph is rather simple but presents a shortcoming (which should be removed in future incarnations of DepTrack): The dependency graph of DevOp nodes executed remotely on droplets is not shown.
+
+It has two symetric subgraphs, one for each slave that shall be deployed, with nodes representing the creation of the droplets, the copy of the locally built executable remotely and the remote execution. The slaves depend on the master configuration and the built executable, something which is done only once for all nodes: The same executable will be deployed on all the droplets. To handle processing remote configuration of the droplets we use a technique similar to what's done for *docker-based* configurations (see above): A [Static pointer](https://downloads.haskell.org/~ghc/7.10.1/docs/html/users_guide/static-pointers.html) (see also [Mathieu Boespflug](https://ocharles.org.uk/blog/guest-posts/2014-12-23-static-pointers.html) post) for the node to be triggered is encoded as a base64 binary and passed as an argument to the executable when run remotely. We add an additional twist by passing a dynamic argument (the IP addresses) to the closure. 
