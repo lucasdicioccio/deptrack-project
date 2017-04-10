@@ -14,6 +14,7 @@ import           Control.Monad               (mapM)
 import qualified Data.Binary                 as Bin
 import           Data.Functor
 import           Data.Monoid
+import           Data.String.Conversions     (convertString)
 import           Data.Text                   (pack, unpack)
 import           Data.Typeable
 import           DepTrack
@@ -183,5 +184,18 @@ sparkCluster numberOfSlaves baseName = do
 
 main :: IO ()
 main = do
-  numSlaves:baseName:args <- getArgs
-  defaultMain (sparkCluster (read numSlaves) baseName)  [optimizeDebianPackages] args
+  args <- getArgs
+  go args
+  where
+    go xs | isMagicRemoteArgv xs = base64EncodedRemoteSetup (drop 1 xs)
+          | otherwise            = localSetup xs
+
+    base64EncodedRemoteSetup :: [String] -> IO ()
+    base64EncodedRemoteSetup (b64:[]) = void $ do
+        let target = opFromClosureB64 (convertString b64)
+        defaultMain target [optimizeDebianPackages] ["up"]
+    base64EncodedNestedSetup _ = Prelude.error "invalid args for magic docker callback"
+
+    localSetup :: [String] -> IO ()
+    localSetup (numSlaves:baseName:args) =
+      defaultMain (sparkCluster (read numSlaves) baseName)  [optimizeDebianPackages] args

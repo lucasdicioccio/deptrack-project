@@ -18,6 +18,7 @@ import           Data.Typeable
 import           DepTrack
 import           Devops.Base
 import           Devops.Binary
+import           Devops.Callback
 import           Devops.Debian.User
 import           Devops.Networking           hiding (Remoted (..))
 import           Devops.Ref
@@ -41,6 +42,12 @@ data FileTransferred = FileTransferred !FilePath !User !Remotable
 -- | A SSH server ready on some resolvable remote
 data SshReady = SshReady { remoteSsh :: !Remotable }
               deriving (Show)
+
+magicRemoteArgv :: String
+magicRemoteArgv = "~~~"
+
+isMagicRemoteArgv :: [ String ] -> Bool
+isMagicRemoteArgv args = take 1 args == [magicRemoteArgv]
 
 -- | A parasite that requires some `Remote` resolution to be deployed.
 parasite :: DevOp User -> DevOp FilePresent -> DevOp Remotable -> DevOp ParasitedHost
@@ -108,29 +115,29 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- | Remotely execute a `Closure` on some parasited host
 -- adapted from `Devops.Parasite`
 -- TODO unify the different ways of talking to a remote host
-remoted :: Typeable a => DevOp User -> Closure (DevOp a) -> DevOp ParasitedHost -> DevOp (Remoted a)
-remoted usr clo host =
+remoted :: Typeable a => ClosureCallBack a -> DevOp User -> Closure (DevOp a) -> DevOp ParasitedHost -> DevOp (Remoted a)
+remoted mkCb usr clo host =
   devop fst mkOp (do
-              u <- usr
-              c <- ssh
-              let remoteObj = runDevOp $ unclosure clo
-              let fp = convertString $ B64.encode $ Binary.encode clo
-              (ParasitedHost rpath _ r) <- host
-              return (Remoted r remoteObj,(rpath, c, fp, u, r)))
+    let remoteObj = runDevOp $ unclosure clo
+    (BinaryCall selfPath args) <- mkCb clo
+    u <- usr
+    c <- ssh
+    (ParasitedHost _ _ r) <- host
+    return (Remoted r remoteObj,(selfPath, args, c, u, r)))
 
   where ssh = binary :: DevOp (Binary "ssh")
-        mkOp (_, (rpath, c, b64, u, r)) = buildOp
-              ("remote-closure: " <> b64 <> " @" <> pack (show $ resolvedKey r))
-              ("calls 'turnup --b64=" <> b64 <> "'")
+        mkOp (_, (rpath, args, c, u, r)) = buildOp
+              ("remote-closure: " <> pack rpath <> " @" <> pack (show $ resolvedKey r))
+              ("calls '" <> pack rpath <> "'")
               noCheck
-              (resolver r >>= \ (Remote ip) -> blindRun c (sshCmd rpath u ip b64) "")
+              (resolver r >>= \ (Remote ip) -> blindRun c (sshCmd rpath u ip args) "")
               noAction
               noAction
-        sshCmd rpath u ip b64 = [ "-o", "StrictHostKeyChecking no"
-                                , "-o", "UserKnownHostsFile /dev/null"
-                                , "-l", unpack (userName u), unpack ip
-                                , remoteExecution rpath b64 ]
-        remoteExecution rpath b64 = unwords [ "chmod", "+x", rpath, ";", rpath, "turnup", "--b64", unpack b64 , ";"]
+        sshCmd rpath u ip args = [ "-o", "StrictHostKeyChecking no"
+                                 , "-o", "UserKnownHostsFile /dev/null"
+                                 , "-l", unpack (userName u), unpack ip
+                                 , remoteExecution rpath args ]
+        remoteExecution rpath args = unwords $ [ "chmod", "+x", rpath, ";", rpath ] ++ args ++ [ ";"]
 
 -- | Remotely execute a `Closure` on some parasited host passing it an argument at runtime
 --
@@ -164,4 +171,4 @@ remotedWith mkAction usr clo host =
                                 , "-o", "UserKnownHostsFile /dev/null"
                                 , "-l", unpack (userName u), unpack ip
                                 , remoteExecution rpath b64 ]
-        remoteExecution rpath b64 = unwords [ "chmod", "+x", rpath, ";", rpath, "turnup", "--b64", unpack b64 , ";"]
+        remoteExecution rpath b64 = unwords [ "chmod", "+x", rpath, ";", rpath, magicRemoteArgv, unpack b64 , ";"]

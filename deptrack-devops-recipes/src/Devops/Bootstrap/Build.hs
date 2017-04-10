@@ -21,7 +21,7 @@ import           System.Directory (doesFileExist)
 import           System.Docker    (ImageName (..))
 
 -- | A specific build of (self) `DepTrack` application for a given OS/arch target
-data Build (o :: OS) = Build { remotableExec   :: BuildTarget
+data Build (o :: OS) = Build { remotableExec   :: BuildArgs
                              , sourceDirectory :: FilePath
                              }
                     deriving (Eq, Show, Typeable)
@@ -35,7 +35,7 @@ instance HasDockerImage (Build 'Ubuntu14_04) where
 instance HasDockerImage (Build 'Ubuntu16_04) where
   dockerImage _ = ImageName "haskell:8.0.2"
 
-build :: (Typeable o, HasDockerImage (Build o)) => Proxy o -> FilePath -> BuildTarget -> DevOp (Build o)
+build :: (Typeable o, HasDockerImage (Build o)) => Proxy o -> FilePath -> BuildArgs -> DevOp (Build o)
 build _ sourceDir buildTarget = devop snd mkOp $ do
   d <- binary :: DevOp (Binary "dockerX")  -- we need docker installed...
   return (d,Build buildTarget sourceDir)
