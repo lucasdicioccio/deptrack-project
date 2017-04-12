@@ -22,6 +22,10 @@ library
                   , Devops.Authentication
                   , Devops.BaseImage
                   , Devops.Binary
+                  , Devops.Bootstrap
+                  , Devops.Bootstrap.DO
+                  , Devops.Bootstrap.Parasite
+                  , Devops.Bootstrap.Build
                   , Devops.Docker
                   , Devops.DockerBootstrap
                   , Devops.DotNetCore
@@ -72,10 +76,12 @@ library
                      , distributed-closure
                      , filepath
                      , hdaemonize
+                     , hdo
                      , lens
                      , process
                      , strict
                      , string-conversions
+                     , system-extra
                      , text
                      , unix
   default-language:    Haskell2010

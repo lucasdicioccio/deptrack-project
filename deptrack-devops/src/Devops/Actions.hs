@@ -43,7 +43,7 @@ concurrentUpkeep graph = do
 concurrentTurndown :: OpGraph -> IO ()
 concurrentTurndown (g,f1,f2) = do
     let graph = (transposeG g, f1, f2)
-    let s = snapshot TurnedUp graph emptyIntents
+    let s = snapshot TurnedDown graph emptyIntents
     sm <- atomically $ makeStatusesMap s
     asyncTurndownGraph noBroadcast sm s graph
 
