@@ -64,6 +64,9 @@ library
                   , Devops.Storage.Mount
                   , Devops.SysQuery
                   , Devops.Utils
+  other-modules: Devops.Utils.Build
+               , Devops.Utils.Docker
+               , Devops.Utils.IO
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , base64-bytestring
@@ -81,7 +84,6 @@ library
                      , process
                      , strict
                      , string-conversions
-                     , system-extra
                      , text
                      , unix
   default-language:    Haskell2010

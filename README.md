@@ -17,7 +17,6 @@ computation.
 TODO: write a mini tutorial, and link to it;
 for now the gist is:
 - clone the repo
-- install the (temporary, until we deprecate its use) system-extra submodule
 - stack install the repo
 - take example on deptrack-devops-examples/ to build your binaries
 
@@ -25,8 +24,6 @@ This can be done as follows
 ```shell
 git clone https://github.com/lucasdicioccio/deptrack-project.git
 cd deptrack-project
-git submodule init
-git submodule update
 stack setup
 cd deptrack-devops-examples
 stack install
