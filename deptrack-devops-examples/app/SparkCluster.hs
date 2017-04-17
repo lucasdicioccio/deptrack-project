@@ -26,10 +26,13 @@ import           Devops.Bootstrap
 import           Devops.Bootstrap.Build
 import           Devops.Bootstrap.DO
 import           Devops.Bootstrap.Parasite
+import           Devops.Callback
 import           Devops.Cli
 import           Devops.Debian
 import           Devops.Debian.User
+import           Devops.Docker
 import           Devops.Downloads
+import           Devops.Haskell
 import           Devops.Networking           hiding (Remoted)
 import           Devops.Optimize             (optimizeDebianPackages)
 import           Devops.OS
@@ -39,7 +42,7 @@ import           Devops.Storage
 import           Devops.Utils
 import           GHC.Generics
 import           Network.DO
-import           System.Environment          (getArgs)
+import           System.Environment          (getArgs, getExecutablePath)
 import           System.FilePath
 
 exe    = "deptrack-devops-example-spark"
@@ -48,13 +51,31 @@ allIps = "0.0.0.0"
 dropletConfig key=  standardDroplet { size = G2, configImageSlug = ubuntuXenialSlug, keys = [key] }
 sparkDistributionURL = "http://d3kbcqa49mib13.cloudfront.net/spark-1.6.1-bin-hadoop2.6.tgz"
 
-parasitedHost :: String -> Int -> DevOp ParasitedHost
-parasitedHost dropletName key = do
+deptrackProject :: DevOp (StackProject "deptrack-project")
+deptrackProject = do
+    let url = "https://github.com/begriffs/postgrest.git" 
+    let branch = "master"
+    stackProject url branch "deptrack-devops-example-spark" (mereUser "user")
+
+instance HasBinary (StackProject "deptrack-project") "deptrack-devops-example-spark" where
+
+selfBin :: DevOp (Binary "deptrack-devops-example-spark")
+selfBin = stackInstall "/home/user" deptrackProject
+
+dockerContent :: DevOp FilePresent
+dockerContent = binaryPresent selfBin
+
+parasitedHost :: FilePath -> String -> Int -> DevOp ParasitedHost
+parasitedHost selfPath dropletName key = do
   let host     = droplet False ((dropletConfig key) { configName = dropletName } )
-      built    = build ubuntu16_04 ".." exe
+      build    = dockerized "sparkcluster-deptrack-build"
+                            (selfCallback selfPath "~~~")
+                            (preExistingDockerImage "haskell:8.0.2")
+                            (closure $ static dockerContent)
+      built    = fetchFile "/opt/self-bin" build
       doref    = saveRef (pack dropletName)
       resolved = resolveRef doref host
-  parasite root (buildOutput built) resolved
+  parasite root built resolved
 
 instance HasBinary (DebianPackage "openjdk-8-jdk-headless") "java" where
 
@@ -175,27 +196,29 @@ sparkSlave remoteMaster host =
 
   in fst <$> inject (remotedWith slaveConfig root remoteSlave host) remoteMaster
 
-sparkCluster :: Int -> String -> Int -> DevOp ()
-sparkCluster numberOfSlaves baseName key = do
-  let masterHost      = parasitedHost (baseName <> "-master") key
-      slaveHosts      = map (\ i -> parasitedHost (baseName <> "-slave-" <> show i) key) [1 .. numberOfSlaves]
+sparkCluster :: FilePath -> Int -> String -> Int -> DevOp ()
+sparkCluster selfPath numberOfSlaves baseName key = do
+  let masterHost      = parasitedHost selfPath (baseName <> "-master") key
+      slaveHosts      = map (\ i -> parasitedHost selfPath (baseName <> "-slave-" <> show i) key) [1 .. numberOfSlaves]
       sparkMasterHost = sparkMaster masterHost
   void $ traverse (sparkSlave sparkMasterHost) slaveHosts
 
 main :: IO ()
 main = do
   args <- getArgs
-  go args
+  currentSelf <- getExecutablePath
+  go currentSelf args
   where
-    go xs | isMagicRemoteArgv xs = base64EncodedRemoteSetup (drop 1 xs)
-          | otherwise            = localSetup xs
+    go currentSelf xs
+        | isMagicRemoteArgv xs = base64EncodedRemoteSetup (drop 1 xs)
+        | otherwise            = localSetup currentSelf xs
 
     base64EncodedRemoteSetup :: [String] -> IO ()
     base64EncodedRemoteSetup (b64:[]) = void $ do
         let target = opFromClosureB64 (convertString b64)
         defaultMain target [optimizeDebianPackages] ["up"]
-    base64EncodedNestedSetup _ = Prelude.error "invalid args for magic docker callback"
+    base64EncodedNestedSetup _ = Prelude.error "invalid args for magic droplet callback"
 
-    localSetup :: [String] -> IO ()
-    localSetup (numSlaves:baseName:key:args) =
-      defaultMain (sparkCluster (read numSlaves) baseName (read key))  [optimizeDebianPackages] args
+    localSetup :: FilePath -> [String] -> IO ()
+    localSetup currentSelf (numSlaves:baseName:key:args) =
+      defaultMain (sparkCluster currentSelf (read numSlaves) baseName (read key))  [optimizeDebianPackages] args
