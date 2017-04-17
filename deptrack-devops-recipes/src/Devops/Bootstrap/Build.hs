@@ -7,18 +7,18 @@
 {-# LANGUAGE RecordWildCards    #-}
 module Devops.Bootstrap.Build where
 
-import           Data.Functor     (void)
+import           Data.Functor       (void)
 import           Data.Monoid
 import           Data.Proxy
-import           Data.Text        (pack)
+import           Data.Text          (pack)
 import           Data.Typeable
 import           Devops.Base
 import           Devops.Binary
 import           Devops.OS
 import           Devops.Storage
-import           System.Build
-import           System.Directory (doesFileExist)
-import           System.Docker    (ImageName (..))
+import           Devops.Utils.Build
+import           System.Directory   (doesFileExist)
+
 
 -- | A specific build of (self) `DepTrack` application for a given OS/arch target
 data Build (o :: OS) = Build { remotableExec   :: BuildArgs
