@@ -12,23 +12,6 @@ connecting nodes in a graph, one can focus on computing a value which describes
 a high-level goal and _records_ a tree of dependencies used during the
 computation.
 
-# Using DepTrack
-
-TODO: write a mini tutorial, and link to it;
-for now the gist is:
-- clone the repo
-- stack install the repo
-- take example on deptrack-devops-examples/ to build your binaries
-
-This can be done as follows
-```shell
-git clone https://github.com/lucasdicioccio/deptrack-project.git
-cd deptrack-project
-stack setup
-cd deptrack-devops-examples
-stack install
-```
-
 # Sub-projects
 
 ## deptrack-core
@@ -116,6 +99,34 @@ This module provides some recipes to configure machines. It contains things I
 found useful to configure my personal servers; mostly Debian-like.
 Organization of this module is likely to change. See the README in this
 directory to have an up-to date description.
+
+# Using DepTrack Devops
+
+We provide a Mustache template to start new DepTrack for Devops projects.
+After installing the Haskell Stack tool, you can do as follows:
+
+```shell
+stack new my-project https://raw.githubusercontent.com/lucasdicioccio/deptrack-project/master/deptrack-devops.hsfiles
+
+cd my-project
+
+stack build
+```
+
+You can also study and modify the examples from deptrack-devops-examples.
+
+- clone the repo
+- stack install the repo
+- take example on deptrack-devops-examples/ to build your binaries
+
+This can be done as follows
+```shell
+git clone https://github.com/lucasdicioccio/deptrack-project.git
+cd deptrack-project
+stack setup
+cd deptrack-devops-examples
+stack install
+```
 
 # Contributing to DepTrack
 
