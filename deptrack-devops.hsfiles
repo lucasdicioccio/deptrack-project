@@ -56,7 +56,7 @@ import Distribution.Simple
 main = defaultMain
 
 {-# START_FILE stack.yaml #-}
-resolver: lts-7.17
+resolver: lts-8.8
 packages:
 - '.'
 - location:
@@ -71,6 +71,7 @@ extra-deps:
 - 'deptrack-devops-0.1.0.0'
 - 'deptrack-devops-recipes-0.1.0.0'
 - 'dotgen-0.4.2'
+- 'hdo-0.4'
 flags: {}
 extra-package-dbs: []
 
