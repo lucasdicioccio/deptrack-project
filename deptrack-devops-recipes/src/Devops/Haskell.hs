@@ -27,28 +27,51 @@ import           Devops.Git             (GitBranch, GitRepo (..), GitUrl,
 import           Devops.Storage         (DirectoryPresent (..), directory)
 import           Devops.Base            (DevOp, Name, noAction, noCheck, buildOp, devop)
 
-data StackCommand = Setup | Update | Build | Install !Name | InstallIn !Name !FilePath | Exec [Text]
+type PackageName = Name
+type TargetName = Name
+
+data StackCommand =
+    Setup
+  | Update
+  | Build
+  | Install !PackageName
+  | InstallBinaryIn !PackageName !TargetName !FilePath
+  | Exec [Text]
   deriving Show
 
-data StackProject (a :: Symbol) = StackProject DirectoryPresent User
+-- | A StackProject parametrized per package name.
+--
+-- The symbol types should correspond to the package name.
+data StackProject (a :: Symbol) = StackProject {
+    stackProjectDir  :: !DirectoryPresent
+  , stackProjectUser :: !User
+  }
 
-stackInstall :: (KnownSymbol bin, HasBinary (StackProject pkg) bin) =>
-  FilePath -> DevOp (StackProject pkg) -> DevOp (Binary bin)
-stackInstall = go Proxy
+stackInstall ::
+     (KnownSymbol bin, KnownSymbol pkg, HasBinary (StackProject pkg) bin)
+  => FilePath
+  -- ^ directory where to store binaries from the project
+  -> DevOp (StackProject pkg)
+  -- ^ project to build binaries from
+  -> DevOp (Binary bin)
+stackInstall = go Proxy Proxy
   where
-    go :: (KnownSymbol bin, HasBinary (StackProject pkg) bin) =>
-      Proxy bin -> FilePath -> DevOp (StackProject pkg) -> DevOp (Binary bin)
-    go proxy installdir mkProj = do
-        let bin = symbolVal proxy
+    go :: (KnownSymbol bin, KnownSymbol pkg, HasBinary (StackProject pkg) bin)
+       => Proxy bin
+       -> Proxy pkg
+       -> FilePath
+       -> DevOp (StackProject pkg)
+       -> DevOp (Binary bin)
+    go proxyBin proxyPkg installdir mkProj = do
+        let bin = symbolVal proxyBin
+        let b = Text.pack bin
+        let pkg = symbolVal proxyPkg
+        let p = Text.pack pkg
         stackRun stack
-                 (projdir <$> mkProj)
-                 (projuser <$> mkProj)
-                 [InstallIn (Text.pack bin) installdir]
+                 (stackProjectDir <$> mkProj)
+                 (stackProjectUser <$> mkProj)
+                 [InstallBinaryIn p b installdir]
         return $ (Binary $ installdir </> bin)
-
-    projdir (StackProject d _) = d
-    projuser (StackProject _ u) = u
-
 
 -- | Bootstraps a Stack project in a user directory as follows:
 -- - clone-it
@@ -100,5 +123,11 @@ runStack s d (User u) =
     Build       -> suRunAsInDir s d u ["build"] ""
     Update      -> suRunAsInDir s d u ["update"] ""
     (Install n) -> suRunAsInDir s d u ["install", Text.unpack n] ""
-    (InstallIn n path) -> suRunAsInDir s d u ["install", "--allow-different-user", "--local-bin-path=" <> path, Text.unpack n] ""
+    (InstallBinaryIn p b path) -> do
+        let tgt = Text.unpack $ p <> ":" <> b
+        let args = [ "install" , "--allow-different-user"
+                   , "--local-bin-path=" <> path
+                   , tgt
+                   ]
+        suRunAsInDir s d u args ""
     (Exec args) -> suRunAsInDir s d u ("exec":"--":(fmap Text.unpack args)) ""
