@@ -51,23 +51,23 @@ allIps = "0.0.0.0"
 dropletConfig key=  standardDroplet { size = G2, configImageSlug = ubuntuXenialSlug, keys = [key] }
 sparkDistributionURL = "http://d3kbcqa49mib13.cloudfront.net/spark-1.6.1-bin-hadoop2.6.tgz"
 
-deptrackProject :: DevOp (StackProject "deptrack-project")
+deptrackProject :: DevOp (StackProject "deptrack-devops-examples")
 deptrackProject = do
-    let url = "https://github.com/begriffs/postgrest.git" 
+    let url = "https://github.com/lucasdicioccio/deptrack-project.git"
     let branch = "master"
-    stackProject url branch "deptrack-devops-example-spark" (mereUser "user")
+    stackProject url branch "deptrack-project-src" (mereUser "user")
 
-instance HasBinary (StackProject "deptrack-project") "deptrack-devops-example-spark" where
+instance HasBinary (StackProject "deptrack-devops-examples") "deptrack-devops-example-spark" where
 
 selfBin :: DevOp (Binary "deptrack-devops-example-spark")
-selfBin = stackInstall "/home/user" deptrackProject
+selfBin = fmap fst $ stackInstall "/home/user" deptrackProject `inject` deb "sudo" -- this example uses haskell:8.0.2 which does not come with "sudo" -- which is one of the prerequisites for stack-building a target
 
 dockerContent :: DevOp FilePresent
 dockerContent = binaryPresent selfBin
 
 parasitedHost :: FilePath -> String -> Int -> DevOp ParasitedHost
 parasitedHost selfPath dropletName key = do
-  let host     = droplet False ((dropletConfig key) { configName = dropletName } )
+  let host     = fmap fst (droplet False ((dropletConfig key) { configName = dropletName } ) `inject` built) -- impose to not start VMs if build is not ready
       build    = dockerized "sparkcluster-deptrack-build"
                             (selfCallback selfPath "~~~")
                             (preExistingDockerImage "haskell:8.0.2")
