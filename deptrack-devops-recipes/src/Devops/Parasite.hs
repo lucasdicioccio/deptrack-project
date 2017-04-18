@@ -14,6 +14,7 @@ module Devops.Parasite (
 import           Control.Distributed.Closure (Closure)
 import           Control.Distributed.Closure (unclosure)
 import qualified Data.Binary                 as Binary
+import qualified Data.ByteString.Lazy        as Lazy
 import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.Monoid                 ((<>))
 import           Data.String.Conversions     (convertString)
@@ -69,26 +70,33 @@ parasite selfPath mkHost = track mkOp $ do
                                        ("copies itself after in a parasite")
 
 -- | Turnup a given DevOp at a given remote.
--- TODO: parametrize protocol and optional remote turndown
-remoted :: Typeable a => Closure (DevOp a) -> DevOp ParasitedHost -> DevOp (Remoted a)
-remoted clo host = devop fst mkOp $ do
-  c <- ssh
-  let remoteObj = runDevOp $ unclosure clo
-  let fp = convertString $ B64.encode $ Binary.encode clo
-  (ParasitedHost rpath login ip) <- host
-  return ((Remoted (Remote ip) remoteObj),(rpath, login, c, fp, ip))
-
-  where mkOp (_, (rpath, login, c, b64, ip)) = buildOp
-              ("remote-closure: " <> b64 <> " @" <> ip)
-              ("calls itself back with `$self turnup --b64=" <> b64 <>"`")
-              noCheck
-              (blindRun c (sshCmd rpath login ip b64) "")
-              noAction
-              noAction
-        sshCmd rpath login ip b64 = [ "-o", "StrictHostKeyChecking no"
-                    , "-o", "UserKnownHostsFile /dev/null"
-                    , "-l", Text.unpack login, Text.unpack ip
-                    , "sudo", "-E", rpath, "turnup", "--b64", Text.unpack b64]
+remoted :: Typeable a
+        => Closure (DevOp a)
+        -> (Lazy.ByteString -> [String])
+        -> DevOp ParasitedHost
+        -> DevOp (Remoted a)
+remoted clo fArgs host = devop fst mkOp $ do
+    c <- ssh
+    let remoteObj = runDevOp $ unclosure clo
+    let b64 = B64.encode $ Binary.encode clo
+    (ParasitedHost rpath login ip) <- host
+    return ((Remoted (Remote ip) remoteObj),(rpath, login, c, b64, ip))
+  where
+    mkOp (_, (rpath, login, c, b64, ip)) =
+        let args = fArgs b64 in
+        buildOp
+            ("remote-closure: " <> convertString b64 <> " @" <> ip)
+            ("calls itself back with `$self " <> convertString (unwords args) <>"`")
+            noCheck
+            (blindRun c (sshCmd rpath login ip args) "")
+            noAction
+            noAction
+    sshCmd rpath login ip args = [
+        "-o", "StrictHostKeyChecking no"
+      , "-o", "UserKnownHostsFile /dev/null"
+      , "-l", Text.unpack login, Text.unpack ip
+      , "sudo", "-E", rpath
+      ] ++ args
 
 -- | A file transferred at a remote path.
 -- TODO: passes a protocol/preference as parameter for user etc.

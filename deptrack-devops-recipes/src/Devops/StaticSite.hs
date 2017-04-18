@@ -14,6 +14,7 @@ module Devops.StaticSite (
 
 import           Control.Distributed.Closure    (Closure, cap, cmap, cpure)
 import           Control.Distributed.Closure.TH
+import qualified Data.ByteString.Lazy           as Lazy
 import qualified Data.Text                      as Text
 import           System.FilePath.Posix          (takeFileName)
 
@@ -55,8 +56,9 @@ _gitClonedStaticSites rundir infos = do
 gitClonedInParasite :: ConfigDir
                    -> [(HostString,GitUrl,GitBranch)]
                    -> DevOp (ParasitedHost)
+                   -> (Lazy.ByteString -> [String])
                    -> [DevOp NginxServerConfig]
-gitClonedInParasite rundir gitInfo host =
+gitClonedInParasite rundir gitInfo host fArgs =
     map remoteConfig gitInfo
   where
     staticSiteClosure :: Closure (DevOp (Listening WebService))
@@ -66,7 +68,7 @@ gitClonedInParasite rundir gitInfo host =
 
     remoteHttp :: DevOp (Remoted (Listening WebService))
     remoteHttp =
-        (fmap . fmap . fmap) (const WebService) (remoted staticSiteClosure host)
+        (fmap . fmap . fmap) (const WebService) (remoted staticSiteClosure fArgs host)
 
     remoteConfig :: (HostString, GitUrl, GitBranch) -> DevOp NginxServerConfig
     remoteConfig (hostname,_,_) =
