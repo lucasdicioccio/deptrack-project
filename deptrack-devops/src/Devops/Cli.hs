@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- | Building-block methods to build a command-line tool able to inspect and
 -- turnup/turndown DevOps.
 module Devops.Cli (
@@ -7,6 +8,9 @@ module Devops.Cli (
   , opFromClosureB64
   , graphize
   , defaultMain
+  , App (..)
+  , appMain
+  , appMethod
   ) where
 
 import           Control.Distributed.Closure (unclosure)
@@ -18,6 +22,7 @@ import           Data.Tree                   (Forest)
 import           DepTrack                    (GraphData, buildGraph,
                                               evalDepForest1)
 import           Prelude                     hiding (readFile)
+import           System.Environment          (getArgs, getExecutablePath)
 
 import           Devops.Actions              (concurrentTurndown,
                                               concurrentTurnup, concurrentUpkeep, display, defaultDotify,
@@ -50,11 +55,11 @@ applyMethod :: [(Forest PreOp -> Forest PreOp)]
             -> Forest PreOp
             -> Method
             -> IO ()
-applyMethod transformations originalForest method = do
+applyMethod transformations originalForest meth = do
   let forest = foldl (.) id transformations originalForest
   let graph = graphize forest
 
-  case method of
+  case meth of
     TurnUp   -> concurrentTurnup graph
     TurnDown -> concurrentTurndown graph
     Upkeep   -> concurrentUpkeep graph
@@ -87,3 +92,38 @@ defaultMain devop optimizations = go
                     , "    up, down, upkeep, print, dot, check-dot, list"
                     ]
 
+-- | An optimization on PreOp forests.
+type ForestOptimization = Forest PreOp -> Forest PreOp
+
+-- | A FilePath corresponding to the file with the currently-executing binary.
+type SelfPath = FilePath
+
+-- | A builder for app that can be useful for defining an infrastructure as a
+-- recursive structure where the "main entry point" of the recursion is the
+-- binary itself.
+data App arch = App {
+    _args   :: [String] -> (arch, Method)
+  -- ^ Parses arguments, returns a parsed architecture and a set of args for
+  -- the real defaulMain.
+  , _target :: arch -> SelfPath -> DevOp ()
+  -- ^ Generates a target from the argument and the selfPath
+  , _opts   :: [ForestOptimization]
+  }
+
+appMain :: App a -> IO ()
+appMain App{..} = do
+  self <- getExecutablePath
+  args <- getArgs
+  let (arch, meth) = _args args
+  let forest = getDependenciesOnly $ _target arch self
+  applyMethod _opts forest meth
+
+appMethod :: String -> Method
+appMethod "up"        = TurnUp
+appMethod "down"      = TurnDown
+appMethod "upkeep"    = Upkeep
+appMethod "print"     = Print
+appMethod "dot"       = Dot
+appMethod "check-dot" = CheckDot
+appMethod "list"      = List
+appMethod str         = error $ "unparsed appMethod: " ++ str
