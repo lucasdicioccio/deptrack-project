@@ -75,8 +75,8 @@ dock self = void $ do
               mkCmd
 
     -- a nifty callback where we pull arbitrary stuff in
-    let artifact = dockerized "deptrack-devops-example-docker-callback-build"
-               (selfCallback self magicDockerArgv)
+    let artifact = dockerizedClosure "deptrack-devops-example-docker-callback-build"
+               (selfClosureCallback self magicDockerArgv)
                image
                (closure $ static dockerDevOpContent)
 

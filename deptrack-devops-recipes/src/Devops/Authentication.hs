@@ -26,7 +26,7 @@ type CertificateFile = FilePresent
 data SSHKeyPair = SSHKeyPair { privateKey :: !(Private SSHKeyFile)
                              , publicKey  :: !(Public SSHKeyFile)
                              }
-data SSHCertificateAuthority = SSHCertificateAuthority SSHKeyPair
+data SSHCertificateAuthority = SSHCertificateAuthority { getCAKeyPair :: !SSHKeyPair }
 data SSHSignedUserKey = SSHSignedUserKey { signedKeyPair     :: !SSHKeyPair
                                          , signedCertificate :: !CertificateFile
                                          }

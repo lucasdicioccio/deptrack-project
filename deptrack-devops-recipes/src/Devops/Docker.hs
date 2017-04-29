@@ -14,6 +14,7 @@ module Devops.Docker (
   , DockerWaitMode (..)
   , Dockerized (..)
   , dockerized
+  , dockerizedClosure
   , dockerizedDaemon
   , committedImage
   , fetchFile
@@ -146,17 +147,14 @@ container name waitmode mkImage mkCmd = devop fst mkOp $ do
 
 data Dockerized a = Dockerized !a !Container
 
--- | Continues setting up a DevOp from within a docker container.
---
--- This implementation waits for the container callback to terminate during
--- turnup.
 dockerized :: Name
-           -> ClosureCallBack a
            -> DevOp DockerImage
-           -> Closure (DevOp a)
+           -> arg
+           -> (arg -> DevOp a)
+           -> (arg -> DevOp CallBackMethod)
            -> DevOp (Dockerized a)
-dockerized name mkCb mkImage clo = declare op $ do
-    let obj = runDevOp $ unclosure clo
+dockerized name mkImage clo f mkCb = declare op $ do
+    let obj = runDevOp $ f clo
     (BinaryCall selfPath args) <- mkCb clo
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
@@ -170,6 +168,17 @@ dockerized name mkCb mkImage clo = declare op $ do
                     noAction
                     noAction
 
+-- | Continues setting up a DevOp from within a docker container.
+--
+-- This implementation waits for the container callback to terminate during
+-- turnup.
+dockerizedClosure :: Name
+                  -> ClosureCallBack a
+                  -> DevOp DockerImage
+                  -> Closure (DevOp a)
+                  -> DevOp (Dockerized a)
+dockerizedClosure name mkCb mkImage clo =
+    dockerized  name mkImage clo unclosure mkCb
 
 type DockerBridgeInfo b = String
 data DockerizedDaemon a =

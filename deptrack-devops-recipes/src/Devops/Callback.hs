@@ -4,7 +4,7 @@ module Devops.Callback (
   , MagicArg
   , CallBackMethod (..)
   , ClosureCallBack
-  , selfCallback
+  , selfClosureCallback
   ) where
 
 import           Control.Distributed.Closure (Closure)
@@ -30,7 +30,7 @@ type ClosureCallBack a = Closure (DevOp a) -> DevOp CallBackMethod
 --
 -- The second argument will be a base-64-encoded serialization of the closure
 -- callback.
-selfCallback :: Typeable a => SelfPath -> MagicArg -> ClosureCallBack a
-selfCallback self magicArg = \clo -> do
+selfClosureCallback :: Typeable a => SelfPath -> MagicArg -> ClosureCallBack a
+selfClosureCallback self magicArg = \clo -> do
     let b64data = convertString $ B64.encode $ Binary.encode clo
     return $ BinaryCall self (magicArg:[b64data])
