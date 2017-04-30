@@ -16,7 +16,7 @@ import           Devops.Base (DevOp)
 import           Devops.BaseImage
 import           Devops.Binary (Binary, HasBinary)
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opClosureFromB64)
+import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64)
 import           Devops.Debian (deb)
 import           Devops.Docker
 import           Devops.DockerBootstrap
@@ -74,11 +74,14 @@ dock self = void $ do
               image
               mkCmd
 
+    let dockerCallback clo = return $
+            BinaryCall self (const $ magicDockerArgv:[convertString $ opClosureToB64 clo])
+
     -- a nifty callback where we pull arbitrary stuff in
     let artifact = dockerized "deptrack-devops-example-docker-callback-build"
                               image
                               (continueClosure (closure $ static dockerDevOpContent)
-                                               (selfClosureCallback self magicDockerArgv))
+                                               (dockerCallback))
 
     -- committedImage artifact
     fetchFile "/opt/postgrest-bin" artifact

@@ -10,14 +10,10 @@ module Devops.Callback (
   , eval
   , callback
   , ClosureCallBack
-  , selfClosureCallback
   , continueClosure
   ) where
 
 import           Control.Distributed.Closure (Closure, unclosure)
-import qualified Data.Binary                 as Binary
-import qualified Data.ByteString.Base64.Lazy as B64
-import           Data.String.Conversions (convertString)
 import           Data.Typeable (Typeable)
 
 import           Devops.Base
@@ -54,19 +50,6 @@ callback (Continued arg _ g) = g arg
 
 -- | Function to build a callback to a Closure of a DevOp.
 type ClosureCallBack a = Closure (DevOp a) -> DevOp CallBackMethod
-
--- | Creates a callback to self using a magic argument for branching at the main.
---
--- The second argument will be a base-64-encoded serialization of the closure
--- callback.
---
--- Note that given that ClosureCallback is an existentially quantified type
--- adding a Typeable constraing, you may need to inline the result of this
--- method call for GHC to be happy rather than use a let-binding.
-selfClosureCallback :: Typeable a => SelfPath -> MagicArg -> ClosureCallBack a
-selfClosureCallback self magicArg = \clo -> do
-    let b64data = convertString $ B64.encode $ Binary.encode clo
-    return $ BinaryCall self (const $ magicArg:[b64data])
 
 -- | You should import this function only in leaf code rather than library code.
 continueClosure :: Typeable a

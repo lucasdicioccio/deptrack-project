@@ -12,7 +12,7 @@ import           System.Environment (getArgs)
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opClosureFromB64)
+import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64)
 import           Devops.Debian (deb)
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Docker
@@ -70,11 +70,15 @@ bootstrapBin = "/sbin/bootstrap-deptrack-devops-website"
 dock :: SelfPath -> Evaluator OpFunctions -> DevOp ()
 dock self eval = void $ do
     let image = dockerImage "deptrack-dockerized-website-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
+
+    let dockerCallback clo = return $
+            BinaryCall self (const $ magicDockerArgv:[convertString $ opClosureToB64 clo])
+
     -- a nifty callback where we pull arbitrary stuff in
     let d = dockerizedDaemon "deptrack-devops-example-dockerized-website"
                              image
                              (continueClosure (closure $ static dockerDevOpContent)
-                                              (selfClosureCallback self magicDockerArgv))
+                                              dockerCallback)
     let d' = delay (resolveDockerRemote d) (mainNginxProxy . adapt)
     delayedEval d' eval
   where
