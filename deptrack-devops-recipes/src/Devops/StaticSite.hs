@@ -9,21 +9,16 @@
 -- StaticSite.gitCloned reads weel.
 module Devops.StaticSite (
     gitCloned
-  , gitClonedInParasite
   ) where
 
-import           Control.Distributed.Closure    (Closure, cap, cmap, cpure)
-import           Control.Distributed.Closure.TH
 import qualified Data.Text                      as Text
 import           System.FilePath.Posix          (takeFileName)
 
-import           Devops.Callback
 import           Devops.Debian.Commands
 import           Devops.Debian.User
 import           Devops.Git
 import           Devops.Networking
 import           Devops.Nginx
-import           Devops.Parasite
 import           Devops.Storage
 import           Devops.Base
 
@@ -51,26 +46,3 @@ _gitClonedStaticSites rundir infos = do
     let configs = map (gitCloned . repo) infos
     let srv = nginxMainServer 80 rundir configs
     (fmap . fmap) (const WebService) srv
-
--- | Serve Git-cloned static-sites in a parasite.
-gitClonedInParasite :: ConfigDir
-                   -> [(HostString,GitUrl,GitBranch)]
-                   -> DevOp (ParasitedHost)
-                   -> ClosureCallBack (Listening WebService)
-                   -> [DevOp NginxServerConfig]
-gitClonedInParasite rundir gitInfo host cb =
-    map remoteConfig gitInfo
-  where
-    staticSiteClosure :: Closure (DevOp (Listening WebService))
-    staticSiteClosure = cap (cmap (static _gitClonedStaticSites)
-                                  (cpure $cdict rundir))
-                            (cpure $cdict gitInfo)
-
-    remoteHttp :: DevOp (Remoted (Listening WebService))
-    remoteHttp =
-        let cont = continueClosure staticSiteClosure cb in
-        (fmap . fmap . fmap) (const WebService) (remoted cont host)
-
-    remoteConfig :: (HostString, GitUrl, GitBranch) -> DevOp NginxServerConfig
-    remoteConfig (hostname,_,_) =
-        proxyPass rundir hostname remoteHttp
