@@ -75,7 +75,7 @@ remoted :: Typeable a
 remoted cont host = devop fst mkOp $ do
     c <- ssh
     let obj = eval cont
-    (BinaryCall _ fArgs) <- callback cont
+    let (BinaryCall _ fArgs) = callback cont
     let args = fArgs TurnUp
     (ParasitedHost rpath login ip) <- host
     return ((Remoted (Remote ip) obj), (rpath, login, c, args, ip))

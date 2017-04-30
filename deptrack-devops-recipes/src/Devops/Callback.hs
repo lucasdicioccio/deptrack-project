@@ -30,14 +30,14 @@ data CallBackMethod = BinaryCall !FilePath !(Method -> [String])
 data Continued a = forall obj. Continued {
     _arg        :: obj
   , _mkDevOp    :: obj -> DevOp a
-  , _mkCallback :: obj -> DevOp CallBackMethod
+  , _mkCallback :: obj -> CallBackMethod
   }
 
 continue :: obj
          -- ^ A value.
          -> (obj -> DevOp a)
          -- ^ A function to build a DevOp.
-         -> (obj -> DevOp CallBackMethod)
+         -> (obj -> CallBackMethod)
          -- ^ A function to build a suitable callback.
          -> Continued a
 continue = Continued
@@ -45,11 +45,11 @@ continue = Continued
 eval :: Continued a -> a
 eval (Continued arg f _) = runDevOp $ f arg
 
-callback :: Continued a -> DevOp CallBackMethod
+callback :: Continued a -> CallBackMethod
 callback (Continued arg _ g) = g arg
 
 -- | Function to build a callback to a Closure of a DevOp.
-type ClosureCallBack a = Closure (DevOp a) -> DevOp CallBackMethod
+type ClosureCallBack a = Closure (DevOp a) -> CallBackMethod
 
 -- | You should import this function only in leaf code rather than library code.
 continueClosure :: Typeable a
@@ -58,4 +58,4 @@ continueClosure :: Typeable a
                 -> ClosureCallBack a
                 -- ^ An encoder for the closure.
                 -> Continued a
-continueClosure clo mkCb = continue clo unclosure mkCb
+continueClosure clo ccb = continue clo unclosure ccb

@@ -74,7 +74,7 @@ dock self = void $ do
               image
               mkCmd
 
-    let dockerCallback clo = return $
+    let dockerCallback clo =
             BinaryCall self (const $ magicDockerArgv:[convertString $ opClosureToB64 clo])
 
     -- a nifty callback where we pull arbitrary stuff in

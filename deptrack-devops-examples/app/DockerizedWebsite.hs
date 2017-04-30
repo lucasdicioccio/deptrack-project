@@ -71,7 +71,7 @@ dock :: SelfPath -> Evaluator OpFunctions -> DevOp ()
 dock self eval = void $ do
     let image = dockerImage "deptrack-dockerized-website-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
 
-    let dockerCallback clo = return $
+    let dockerCallback clo =
             BinaryCall self (const $ magicDockerArgv:[convertString $ opClosureToB64 clo])
 
     -- a nifty callback where we pull arbitrary stuff in

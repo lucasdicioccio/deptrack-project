@@ -121,7 +121,7 @@ remoted :: Typeable a => ClosureCallBack a -> DevOp User -> Closure (DevOp a) ->
 remoted mkCb usr clo host =
   devop fst mkOp (do
     let remoteObj = runDevOp $ unclosure clo
-    (BinaryCall selfPath fArgs) <- mkCb clo
+    let (BinaryCall selfPath fArgs) = mkCb clo
     let args = fArgs TurnUp
     u <- usr
     c <- ssh

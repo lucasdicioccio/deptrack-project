@@ -151,7 +151,7 @@ dockerized :: Name
            -> DevOp (Dockerized a)
 dockerized name mkImage cont = declare op $ do
     let obj = eval cont
-    (BinaryCall selfPath fArgs) <- callback cont
+    let (BinaryCall selfPath fArgs) = callback cont
     let args = fArgs TurnUp
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
@@ -209,7 +209,7 @@ dockerizedDaemon :: Name
                  -> DevOp (DockerizedDaemon (f (Daemon a)))
 dockerizedDaemon name mkImage cont = declare op $ do
     let obj = eval cont
-    (BinaryCall selfPath fArgs) <- callback cont
+    let (BinaryCall selfPath fArgs) = callback cont
     let args = fArgs TurnUp
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
