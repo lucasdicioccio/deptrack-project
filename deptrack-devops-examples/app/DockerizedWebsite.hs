@@ -80,7 +80,7 @@ dock self eval = void $ do
   where
     adapt = fmap exposed2listening . (fmap . fmap) nginxAsWebService
     chrootCallback :: CallBackMethod
-    chrootCallback = BinaryCall self magicChrootArgv
+    chrootCallback = BinaryCall self (const magicChrootArgv)
 
     baseImageConfig :: BaseImageConfig DockerBase
     baseImageConfig =

@@ -15,6 +15,7 @@ import           System.FilePath         (makeRelative, (</>))
 
 import           Devops.Base
 import           Devops.Callback
+import           Devops.Cli
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Debootstrap
 import           Devops.Storage
@@ -52,6 +53,6 @@ bootstrap imgpath bootstrapdir cfg mounts cb = devop fst mkOp $ do
     mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")
         noCheck
-        (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs) "")
+        (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs TurnUp) "")
         noAction
         noAction

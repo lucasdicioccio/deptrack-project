@@ -21,6 +21,7 @@ import           Data.String.Conversions (convertString)
 import           Data.Typeable (Typeable)
 
 import           Devops.Base
+import           Devops.Cli
 
 type SelfPath = FilePath
 type MagicArg = String
@@ -28,7 +29,7 @@ type MagicArg = String
 -- | Method to callback a non-local node.
 -- TODO: develop on this to be able to represent parasited/chrooted calls
 --       ideally we also need a way to "link" long-lived processes such as Backends together
-data CallBackMethod = BinaryCall !FilePath ![String]
+data CallBackMethod = BinaryCall !FilePath !(Method -> [String])
 
 data Continued a = forall obj. Continued {
     _arg        :: obj
@@ -61,7 +62,7 @@ type ClosureCallBack = forall a. Typeable a => Closure (DevOp a) -> DevOp CallBa
 selfClosureCallback :: SelfPath -> MagicArg -> ClosureCallBack
 selfClosureCallback self magicArg = \clo -> do
     let b64data = convertString $ B64.encode $ Binary.encode clo
-    return $ BinaryCall self (magicArg:[b64data])
+    return $ BinaryCall self (const $ magicArg:[b64data])
 
 -- | You should import this function only in leaf code rather than library code.
 continueClosure :: Typeable a

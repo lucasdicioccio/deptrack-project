@@ -64,7 +64,7 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus eth0 disk
                                callback
 
     callback :: CallBackMethod
-    callback = BinaryCall self (magicArgv pubkeys)
+    callback = BinaryCall self (const $ magicArgv pubkeys)
 
 baseImageConfig :: PubkeyContent -> (BaseImageConfig QemuBase)
 baseImageConfig pubkeys =

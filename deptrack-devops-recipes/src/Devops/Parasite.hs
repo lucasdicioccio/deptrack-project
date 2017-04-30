@@ -20,6 +20,7 @@ import           System.FilePath.Posix       (takeBaseName, (</>))
 
 import           DepTrack
 import           Devops.Callback
+import           Devops.Cli
 import           Devops.Debian.Commands      hiding (r, umount)
 import           Devops.Debian.User          (homeDirPath)
 import           Devops.Networking
@@ -74,7 +75,8 @@ remoted :: Typeable a
 remoted cont host = devop fst mkOp $ do
     c <- ssh
     let obj = eval cont
-    (BinaryCall _ args) <- callback cont
+    (BinaryCall _ fArgs) <- callback cont
+    let args = fArgs TurnUp
     (ParasitedHost rpath login ip) <- host
     return ((Remoted (Remote ip) obj), (rpath, login, c, args, ip))
   where

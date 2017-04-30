@@ -20,6 +20,7 @@ import           DepTrack
 import           Devops.Base
 import           Devops.Binary
 import           Devops.Callback
+import           Devops.Cli
 import           Devops.Debian.User
 import           Devops.Networking           hiding (Remoted (..))
 import           Devops.Ref
@@ -120,7 +121,8 @@ remoted :: Typeable a => ClosureCallBack -> DevOp User -> Closure (DevOp a) -> D
 remoted mkCb usr clo host =
   devop fst mkOp (do
     let remoteObj = runDevOp $ unclosure clo
-    (BinaryCall selfPath args) <- mkCb clo
+    (BinaryCall selfPath fArgs) <- mkCb clo
+    let args = fArgs TurnUp
     u <- usr
     c <- ssh
     (ParasitedHost _ _ r) <- host

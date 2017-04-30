@@ -32,6 +32,7 @@ import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Binary
 import           Devops.Callback
+import           Devops.Cli
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.DockerBootstrap
 import           Devops.Networking
@@ -150,7 +151,8 @@ dockerized :: Name
            -> DevOp (Dockerized a)
 dockerized name mkImage cont = declare op $ do
     let obj = eval cont
-    (BinaryCall selfPath args) <- callback cont
+    (BinaryCall selfPath fArgs) <- callback cont
+    let args = fArgs TurnUp
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let cbContainer = container name Wait mkImage mkCmd
@@ -207,7 +209,8 @@ dockerizedDaemon :: Name
                  -> DevOp (DockerizedDaemon (f (Daemon a)))
 dockerizedDaemon name mkImage cont = declare op $ do
     let obj = eval cont
-    (BinaryCall selfPath args) <- callback cont
+    (BinaryCall selfPath fArgs) <- callback cont
+    let args = fArgs TurnUp
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let cbContainer = container name NoWait mkImage mkCmd
