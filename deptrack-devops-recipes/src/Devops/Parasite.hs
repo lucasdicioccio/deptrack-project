@@ -52,8 +52,9 @@ control login mkRemote = devop fst mkOp $ do
                                             noAction
 
 -- | A parasite reserves a binary in the homedir.
--- TODO: passes a preferences parameters to specialize the parasite protocol.
--- We should shove all of this in the ParasitedHost object.
+--
+-- The remote binary will take precedence in 'BinaryCall' from 'remoted'
+-- 'Continued' argument.
 parasite :: FilePath -> DevOp ControlledHost -> DevOp ParasitedHost
 parasite selfPath mkHost = track mkOp $ do
     (ControlledHost login _) <- mkHost
@@ -93,27 +94,30 @@ remoted cont host = devop fst mkOp $ do
       ] ++ args
 
 -- | A file transferred at a remote path.
--- TODO: passes a protocol/preference as parameter for user etc.
 fileTransferred :: DevOp FilePresent
                 -> FilePath
                 -> DevOp ControlledHost
                 -> DevOp (FileTransferred)
 fileTransferred mkFp path mkHost = devop fst mkOp $ do
-  c <- scp
-  f <- mkFp
-  (ControlledHost login r) <- mkHost
-  return (FileTransferred path r, (f,c,login))
-  where mkOp (FileTransferred rpath (Remote ip), (FilePresent lpath,c,login)) = do
-              buildOp ("remote-file: " <> Text.pack rpath <> "@" <> ip)
-                 ("file " <> Text.pack lpath <> " copied on " <> ip)
-                 noCheck
-                 (blindRun c (scpcmd lpath login ip rpath) "")
-                 noAction
-                 noAction
-        scpcmd lpath login ip rpath = [ "-o", "StrictHostKeyChecking no"
-                                , "-o", "UserKnownHostsFile /dev/null"
-                                , lpath
-                                , Text.unpack login ++ "@" ++ Text.unpack ip ++ ":" ++ rpath]
+    c <- scp
+    f <- mkFp
+    (ControlledHost login r) <- mkHost
+    return (FileTransferred path r, (f,c,login))
+  where
+    mkOp (FileTransferred rpath (Remote ip), (FilePresent lpath,c,login)) = do
+            buildOp
+                ("remote-file: " <> Text.pack rpath <> "@" <> ip)
+                ("file " <> Text.pack lpath <> " copied on " <> ip)
+                noCheck
+                (blindRun c (scpcmd lpath login ip rpath) "")
+                noAction
+                noAction
+    scpcmd lpath login ip rpath = [
+          "-o", "StrictHostKeyChecking no"
+        , "-o", "UserKnownHostsFile /dev/null"
+        , lpath
+        , Text.unpack login ++ "@" ++ Text.unpack ip ++ ":" ++ rpath
+        ]
 
 -- Remote storage mounting.
 data SshFsMountedDir = SshFsMountedDir !FilePath
@@ -147,6 +151,6 @@ sshMounted mkPath mkHost = devop fst mkOp $ do
 
 sshFileCopy :: DevOp FilePresent -> DevOp (SshFsMountedDir) -> DevOp (RepositoryFile, FilePresent)
 sshFileCopy mkLocal mkDir = do
-  (FilePresent loc) <- mkLocal
-  let rpath = (\(SshFsMountedDir dir) -> dir </> takeBaseName loc) <$> mkDir
-  fileCopy rpath (mkLocal >>= (\(FilePresent local) -> localRepositoryFile local))
+    (FilePresent loc) <- mkLocal
+    let rpath = (\(SshFsMountedDir dir) -> dir </> takeBaseName loc) <$> mkDir
+    fileCopy rpath (mkLocal >>= (\(FilePresent local) -> localRepositoryFile local))
