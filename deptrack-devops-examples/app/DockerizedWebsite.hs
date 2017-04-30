@@ -72,9 +72,9 @@ dock self eval = void $ do
     let image = dockerImage "deptrack-dockerized-website-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
     -- a nifty callback where we pull arbitrary stuff in
     let d = dockerizedDaemon "deptrack-devops-example-dockerized-website"
-                             (selfClosureCallback self magicDockerArgv)
                              image
-                             (closure $ static dockerDevOpContent)
+                             (continueClosure (closure $ static dockerDevOpContent)
+                                              (selfClosureCallback self magicDockerArgv))
     let d' = delay (resolveDockerRemote d) (mainNginxProxy . adapt)
     delayedEval d' eval
   where

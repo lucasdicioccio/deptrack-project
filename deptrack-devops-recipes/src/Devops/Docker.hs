@@ -1,8 +1,8 @@
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE FlexibleInstances         #-}
 
 module Devops.Docker (
     DockerImage
@@ -14,15 +14,12 @@ module Devops.Docker (
   , DockerWaitMode (..)
   , Dockerized (..)
   , dockerized
-  , dockerizedClosure
   , dockerizedDaemon
   , committedImage
   , fetchFile
   , resolveDockerRemote
   ) where
 
-import           Control.Distributed.Closure (Closure)
-import           Control.Distributed.Closure (unclosure)
 import           Data.Aeson
 import           Data.Monoid ((<>))
 import           Data.String.Conversions (convertString)
@@ -149,13 +146,11 @@ data Dockerized a = Dockerized !a !Container
 
 dockerized :: Name
            -> DevOp DockerImage
-           -> arg
-           -> (arg -> DevOp a)
-           -> (arg -> DevOp CallBackMethod)
+           -> Continued a
            -> DevOp (Dockerized a)
-dockerized name mkImage clo f mkCb = declare op $ do
-    let obj = runDevOp $ f clo
-    (BinaryCall selfPath args) <- mkCb clo
+dockerized name mkImage cont = declare op $ do
+    let obj = eval cont
+    (BinaryCall selfPath args) <- callback cont
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let cbContainer = container name Wait mkImage mkCmd
@@ -167,18 +162,6 @@ dockerized name mkImage clo f mkCb = declare op $ do
                     noAction
                     noAction
                     noAction
-
--- | Continues setting up a DevOp from within a docker container.
---
--- This implementation waits for the container callback to terminate during
--- turnup.
-dockerizedClosure :: Name
-                  -> ClosureCallBack a
-                  -> DevOp DockerImage
-                  -> Closure (DevOp a)
-                  -> DevOp (Dockerized a)
-dockerizedClosure name mkCb mkImage clo =
-    dockerized  name mkImage clo unclosure mkCb
 
 type DockerBridgeInfo b = String
 data DockerizedDaemon a =
@@ -219,13 +202,12 @@ resolveDockerRemote mkService = do
 -- The functorial wrapper around the Daemon allows to setup networked daemons
 -- such as Listening (Daemon) from the Devops.Networking package.
 dockerizedDaemon :: Name
-                 -> ClosureCallBack (f (Daemon a))
                  -> DevOp DockerImage
-                 -> Closure (DevOp (f (Daemon a)) )
+                 -> Continued (f (Daemon a))
                  -> DevOp (DockerizedDaemon (f (Daemon a)))
-dockerizedDaemon name mkCb mkImage clo = declare op $ do
-    let obj = runDevOp $ unclosure clo
-    (BinaryCall selfPath args) <- mkCb clo
+dockerizedDaemon name mkImage cont = declare op $ do
+    let obj = eval cont
+    (BinaryCall selfPath args) <- callback cont
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let cbContainer = container name NoWait mkImage mkCmd

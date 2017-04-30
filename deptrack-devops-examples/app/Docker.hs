@@ -75,10 +75,10 @@ dock self = void $ do
               mkCmd
 
     -- a nifty callback where we pull arbitrary stuff in
-    let artifact = dockerizedClosure "deptrack-devops-example-docker-callback-build"
-               (selfClosureCallback self magicDockerArgv)
-               image
-               (closure $ static dockerDevOpContent)
+    let artifact = dockerized "deptrack-devops-example-docker-callback-build"
+                              image
+                              (continueClosure (closure $ static dockerDevOpContent)
+                                               (selfClosureCallback self magicDockerArgv))
 
     -- committedImage artifact
     fetchFile "/opt/postgrest-bin" artifact
