@@ -12,7 +12,7 @@ import           System.Environment (getArgs)
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opFromClosureB64)
+import           Devops.Cli (defaultMain, opClosureFromB64)
 import           Devops.Debian (deb)
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Docker
@@ -44,7 +44,7 @@ main = do
 
     base64EncodedNestedSetup :: [String] -> IO ()
     base64EncodedNestedSetup (b64:[]) = void $ do
-        let target = opFromClosureB64 (convertString b64)
+        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp ()
         defaultMain target [optimizeDebianPackages] ["upkeep"]
     base64EncodedNestedSetup _ = error "invalid args for magic docker callback"
 

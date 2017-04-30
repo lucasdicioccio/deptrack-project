@@ -192,9 +192,9 @@ main = do
 
     base64EncodedRemoteSetup :: [String] -> IO ()
     base64EncodedRemoteSetup (b64:[]) = void $ do
-        let target = opFromClosureB64 (convertString b64)
+        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp ()
         defaultMain target [optimizeDebianPackages] ["up"]
-    base64EncodedNestedSetup _ = Prelude.error "invalid args for magic docker callback"
+    base64EncodedNestedSetup _ = Prelude.error "invalid args for magic remote callback"
 
     localSetup :: [String] -> IO ()
     localSetup (numSlaves:baseName:key:args) =

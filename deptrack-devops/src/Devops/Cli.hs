@@ -5,7 +5,6 @@ module Devops.Cli (
     Method (..)
   , applyMethod
   , getDependenciesOnly
-  , opFromClosureB64
   , opClosureFromB64
   , opClosureToB64
   , graphize
@@ -55,9 +54,6 @@ opClosureFromB64 b64 = do
 opClosureToB64 :: Typeable a => Closure (DevOp a) -> ByteString
 opClosureToB64 clo =
     B64.encode $ Binary.encode clo
-
-opFromClosureB64 :: ByteString -> DevOp ()
-opFromClosureB64 = unclosure . opClosureFromB64
 
 graphize :: Forest PreOp -> GraphData PreOp OpUniqueId
 graphize forest = buildGraph preOpUniqueId forest
