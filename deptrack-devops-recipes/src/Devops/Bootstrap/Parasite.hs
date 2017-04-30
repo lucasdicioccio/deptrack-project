@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes        #-}
 module Devops.Bootstrap.Parasite where
 
 import           Control.Concurrent
@@ -115,7 +116,7 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- | Remotely execute a `Closure` on some parasited host
 -- adapted from `Devops.Parasite`
 -- TODO unify the different ways of talking to a remote host
-remoted :: Typeable a => ClosureCallBack a -> DevOp User -> Closure (DevOp a) -> DevOp ParasitedHost -> DevOp (Remoted a)
+remoted :: Typeable a => ClosureCallBack -> DevOp User -> Closure (DevOp a) -> DevOp ParasitedHost -> DevOp (Remoted a)
 remoted mkCb usr clo host =
   devop fst mkOp (do
     let remoteObj = runDevOp $ unclosure clo

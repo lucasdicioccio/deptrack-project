@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes                #-}
 
 module Devops.Callback (
     SelfPath
@@ -51,21 +52,22 @@ callback :: Continued a -> DevOp CallBackMethod
 callback (Continued arg _ g) = g arg
 
 -- | Function to build a callback to a Closure of a DevOp.
-type ClosureCallBack a = Closure (DevOp a) -> DevOp CallBackMethod
+type ClosureCallBack = forall a. Typeable a => Closure (DevOp a) -> DevOp CallBackMethod
 
 -- | Creates a callback to self using a magic argument for branching at the main.
 --
 -- The second argument will be a base-64-encoded serialization of the closure
 -- callback.
-selfClosureCallback :: Typeable a => SelfPath -> MagicArg -> ClosureCallBack a
+selfClosureCallback :: SelfPath -> MagicArg -> ClosureCallBack
 selfClosureCallback self magicArg = \clo -> do
     let b64data = convertString $ B64.encode $ Binary.encode clo
     return $ BinaryCall self (magicArg:[b64data])
 
 -- | You should import this function only in leaf code rather than library code.
-continueClosure :: Closure (DevOp a)
+continueClosure :: Typeable a
+                => Closure (DevOp a)
                 -- ^ A closure you want to serialize.
-                -> ClosureCallBack a
+                -> ClosureCallBack
                 -- ^ An encoder for the closure.
                 -> Continued a
 continueClosure clo mkCb = continue clo unclosure mkCb
