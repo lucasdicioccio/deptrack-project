@@ -53,13 +53,17 @@ callback :: Continued a -> DevOp CallBackMethod
 callback (Continued arg _ g) = g arg
 
 -- | Function to build a callback to a Closure of a DevOp.
-type ClosureCallBack = forall a. Typeable a => Closure (DevOp a) -> DevOp CallBackMethod
+type ClosureCallBack a = Closure (DevOp a) -> DevOp CallBackMethod
 
 -- | Creates a callback to self using a magic argument for branching at the main.
 --
 -- The second argument will be a base-64-encoded serialization of the closure
 -- callback.
-selfClosureCallback :: SelfPath -> MagicArg -> ClosureCallBack
+--
+-- Note that given that ClosureCallback is an existentially quantified type
+-- adding a Typeable constraing, you may need to inline the result of this
+-- method call for GHC to be happy rather than use a let-binding.
+selfClosureCallback :: Typeable a => SelfPath -> MagicArg -> ClosureCallBack a
 selfClosureCallback self magicArg = \clo -> do
     let b64data = convertString $ B64.encode $ Binary.encode clo
     return $ BinaryCall self (const $ magicArg:[b64data])
@@ -68,7 +72,7 @@ selfClosureCallback self magicArg = \clo -> do
 continueClosure :: Typeable a
                 => Closure (DevOp a)
                 -- ^ A closure you want to serialize.
-                -> ClosureCallBack
+                -> ClosureCallBack a
                 -- ^ An encoder for the closure.
                 -> Continued a
 continueClosure clo mkCb = continue clo unclosure mkCb

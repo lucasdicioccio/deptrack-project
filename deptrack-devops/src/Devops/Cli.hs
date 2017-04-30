@@ -6,19 +6,23 @@ module Devops.Cli (
   , applyMethod
   , getDependenciesOnly
   , opFromClosureB64
+  , opClosureFromB64
+  , opClosureToB64
   , graphize
   , defaultMain
   , App (..)
   , appMain
   , appMethod
+  , methodArg
   ) where
 
-import           Control.Distributed.Closure (unclosure)
+import           Control.Distributed.Closure (Closure, unclosure)
 import           Control.Monad.Identity      (runIdentity)
 import qualified Data.Binary                 as Binary
 import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.ByteString.Lazy        (ByteString)
 import           Data.Tree                   (Forest)
+import           Data.Typeable               (Typeable)
 import           DepTrack                    (GraphData, buildGraph,
                                               evalDepForest1)
 import           Prelude                     hiding (readFile)
@@ -42,11 +46,18 @@ data Method =
 getDependenciesOnly :: DevOp a -> Forest PreOp
 getDependenciesOnly = snd . runIdentity . evalDepForest1
 
+opClosureFromB64 :: Typeable a => ByteString -> Closure (DevOp a)
+opClosureFromB64 b64 = do
+    let bstr = B64.decode b64
+    let encodedClosure = either (error "invalid base64") id bstr
+    Binary.decode encodedClosure
+
+opClosureToB64 :: Typeable a => Closure (DevOp a) -> ByteString
+opClosureToB64 clo =
+    B64.encode $ Binary.encode clo
+
 opFromClosureB64 :: ByteString -> DevOp ()
-opFromClosureB64 b64 = do
-  let bstr = B64.decode b64
-  let encodedClosure = either (error "invalid base64") id bstr
-  unclosure $ Binary.decode encodedClosure
+opFromClosureB64 = unclosure . opClosureFromB64
 
 graphize :: Forest PreOp -> GraphData PreOp OpUniqueId
 graphize forest = buildGraph preOpUniqueId forest
@@ -102,20 +113,22 @@ type SelfPath = FilePath
 -- recursive structure where the "main entry point" of the recursion is the
 -- binary itself.
 data App arch = App {
-    _args   :: [String] -> (arch, Method)
+    _parseArgs   :: [String] -> (arch, Method)
   -- ^ Parses arguments, returns a parsed architecture and a set of args for
   -- the real defaulMain.
-  , _target :: arch -> SelfPath -> DevOp ()
+  , _revParse    :: arch -> Method -> [String]
+  -- ^ Reverse parse arguments, for instance when building a callback.
+  , _target      :: arch -> SelfPath -> (arch -> Method -> [String]) -> DevOp ()
   -- ^ Generates a target from the argument and the selfPath
-  , _opts   :: [ForestOptimization]
+  , _opts        :: [ForestOptimization]
   }
 
 appMain :: App a -> IO ()
 appMain App{..} = do
   self <- getExecutablePath
   args <- getArgs
-  let (arch, meth) = _args args
-  let forest = getDependenciesOnly $ _target arch self
+  let (arch, meth) = _parseArgs args
+  let forest = getDependenciesOnly $ _target arch self _revParse
   applyMethod _opts forest meth
 
 appMethod :: String -> Method
@@ -127,3 +140,12 @@ appMethod "dot"       = Dot
 appMethod "check-dot" = CheckDot
 appMethod "list"      = List
 appMethod str         = error $ "unparsed appMethod: " ++ str
+
+methodArg :: Method -> String
+methodArg TurnUp   = "up"
+methodArg TurnDown = "down"
+methodArg Upkeep   = "upkeep"
+methodArg Print    = "print"
+methodArg Dot      = "dot"
+methodArg CheckDot = "check-dot"
+methodArg List     = "list"
