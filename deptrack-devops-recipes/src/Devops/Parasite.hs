@@ -11,11 +11,6 @@ module Devops.Parasite (
   , FileTransferred
   ) where
 
-import           Control.Distributed.Closure (Closure)
-import           Control.Distributed.Closure (unclosure)
-import qualified Data.Binary                 as Binary
-import qualified Data.ByteString.Lazy        as Lazy
-import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.Monoid                 ((<>))
 import           Data.String.Conversions     (convertString)
 import           Data.Text                   (Text)
@@ -24,6 +19,7 @@ import           Data.Typeable               (Typeable)
 import           System.FilePath.Posix       (takeBaseName, (</>))
 
 import           DepTrack
+import           Devops.Callback
 import           Devops.Debian.Commands      hiding (r, umount)
 import           Devops.Debian.User          (homeDirPath)
 import           Devops.Networking
@@ -71,21 +67,19 @@ parasite selfPath mkHost = track mkOp $ do
 
 -- | Turnup a given DevOp at a given remote.
 remoted :: Typeable a
-        => Closure (DevOp a)
-        -> (Lazy.ByteString -> [String])
+        => Continued a
         -> DevOp ParasitedHost
         -> DevOp (Remoted a)
-remoted clo fArgs host = devop fst mkOp $ do
+remoted cont host = devop fst mkOp $ do
     c <- ssh
-    let remoteObj = runDevOp $ unclosure clo
-    let b64 = B64.encode $ Binary.encode clo
+    let obj = eval cont
+    (BinaryCall _ args) <- callback cont
     (ParasitedHost rpath login ip) <- host
-    return ((Remoted (Remote ip) remoteObj),(rpath, login, c, b64, ip))
+    return ((Remoted (Remote ip) obj), (rpath, login, c, args, ip))
   where
-    mkOp (_, (rpath, login, c, b64, ip)) =
-        let args = fArgs b64 in
+    mkOp (_, (rpath, login, c, args, ip)) =
         buildOp
-            ("remote-closure: " <> convertString b64 <> " @" <> ip)
+            ("remote-callback: " <> convertString (unwords args) <> " @" <> ip)
             ("calls itself back with `$self " <> convertString (unwords args) <>"`")
             noCheck
             (blindRun c (sshCmd rpath login ip args) "")

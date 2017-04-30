@@ -62,6 +62,7 @@ selfClosureCallback self magicArg = \clo -> do
     let b64data = convertString $ B64.encode $ Binary.encode clo
     return $ BinaryCall self (magicArg:[b64data])
 
+-- | You should import this function only in leaf code rather than library code.
 continueClosure :: Closure (DevOp a)
                 -- ^ A closure you want to serialize.
                 -> ClosureCallBack a
