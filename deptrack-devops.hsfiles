@@ -92,14 +92,14 @@ recipes = return ()
 {-# START_FILE app/Main.hs #-}
 module Main where
 
-import Devops.Cli (defaultMain)
+import Devops.Cli (simpleMain)
 import Devops.Optimize (optimizeDebianPackages)
 import System.Environment (getArgs)
 
 import Recipes
 
 main :: IO ()
-main = getArgs >>= defaultMain recipes [optimizeDebianPackages]
+main = getArgs >>= simpleMain recipes [optimizeDebianPackages]
 
 {-# START_FILE README.md #-}
 # {{name}}
