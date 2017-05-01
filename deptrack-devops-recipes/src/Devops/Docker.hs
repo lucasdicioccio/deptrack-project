@@ -10,10 +10,15 @@ module Devops.Docker (
   , preExistingDockerImage
   , Container (..)
   , ContainerCommand (..)
-  , container
+  , StandbyContainer (..)
+  , standbyContainer
+  , RunningContainer (..)
+  , runningContainer
   , DockerWaitMode (..)
   , Dockerized (..)
   , dockerized
+  , insertFile
+  , insertDir
   , dockerizedDaemon
   , committedImage
   , fetchFile
@@ -96,25 +101,25 @@ data DockerWaitMode =
     NoWait
   | Wait
 
--- | Spawns a container for running a command.
--- The command is immediately started and the container is disposed only at
--- turndown.
+newtype StandbyContainer = StandbyContainer { getStandby :: Container }
+newtype RunningContainer = RunningContainer { getRunning :: Container }
+
+-- | Spawns a container for running a command but does not start it.
 --
 -- It's cid is stored in a file in /var/run/devops.
-container :: Name
-          -> DockerWaitMode
-          -> DevOp DockerImage
-          -> DevOp ContainerCommand
-          -> DevOp Container
-container name waitmode mkImage mkCmd = devop fst mkOp $ do
+standbyContainer :: Name
+                 -> DevOp DockerImage
+                 -> DevOp ContainerCommand
+                 -> DevOp StandbyContainer
+standbyContainer name mkImage mkCmd = devop fst mkOp $ do
     DirectoryPresent dirPath <- directory "/var/run/devops"
     let cidFile = dirPath </> Text.unpack name <> ".le-cid"
     image@(DockerImage imageName) <- mkImage
     cmd <- mkCmd
     docker <- Cmd.docker
-    return $ (Container name cidFile image cmd, (docker, imageName))
+    return $ (StandbyContainer $ Container name cidFile image cmd, (docker, imageName))
   where
-    mkOp (Container _ cidFile _ cmd, (docker, imageName)) =
+    mkOp (StandbyContainer (Container _ cidFile _ cmd), (docker, imageName)) =
         let (potentialCopy, callbackPath, args) = case cmd of
                 (ExistingContainerCommand fp argv) -> (return (), fp, argv)
                 (ImportedContainerCommand (FilePresent srcBin) argv) ->
@@ -123,11 +128,8 @@ container name waitmode mkImage mkCmd = devop fst mkOp $ do
                             blindRun docker [ "cp" , srcBin
                                             , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
-            waitAction = case waitmode of
-                NoWait -> return ()
-                Wait -> blindRun docker [ "wait" , convertString name ] ""
         in
-        buildOp ("docker-container: " <> name)
+        buildOp ("docker-container-standby: " <> name)
                 ("creates " <> name <> " from image " <> imageName <> " with args: " <> convertString (show callbackPath) <> " " <> convertString (show args))
                 (checkFilePresent cidFile)
                 (blindRun docker ([ "create"
@@ -135,28 +137,100 @@ container name waitmode mkImage mkCmd = devop fst mkOp $ do
                                  , "--name" , convertString name
                                  , convertString imageName
                                  , callbackPath
-                                 ] ++ args )""
-                 >> potentialCopy
-                 >> blindRun docker [ "start" , convertString name ] ""
-                 >> waitAction)
+                                 ] ++ args ) ""
+                >> potentialCopy)
                 (blindRemoveLink cidFile
                  >> blindRun docker [ "rm" , convertString name ] "")
                 noAction
 
-data Dockerized a = Dockerized !a !Container
+-- | Starts a standing-by container and wait for it depending on a waitmode.
+runningContainer :: DockerWaitMode
+                 -> DevOp StandbyContainer
+                 -> DevOp RunningContainer
+runningContainer waitmode standby = devop fst mkOp $ do
+    running <- RunningContainer . getStandby <$> standby
+    docker <- Cmd.docker
+    return $ (running, docker)
+  where
+    mkOp (RunningContainer (Container name cidFile _ _), docker) =
+        let waitAction = case waitmode of
+                NoWait -> return ()
+                Wait -> blindRun docker [ "wait" , convertString name ] ""
+        in
+        buildOp ("docker-container-running: " <> name)
+                ("starts " <> name)
+                (checkFilePresent cidFile)
+                (blindRun docker [ "start" , convertString name ] ""
+                 >> waitAction)
+                (blindRemoveLink cidFile
+                 >> blindRun docker [ "stop" , convertString name ] "")
+                (blindRun docker [ "restart" , convertString name ] ""
+                 >> waitAction)
+
+data Dockerized a =
+    Dockerized { dockerizedObj       :: !a
+               , dockerizedContainer :: !Container
+               }
+
+insertFile :: DevOp FilePresent
+           -> FilePath
+           -> DevOp StandbyContainer
+           -> DevOp StandbyContainer
+insertFile mkFile tgt mkStandby = devop fst mkOp $ do
+    (FilePresent local) <- mkFile
+    standby <- mkStandby
+    docker <- Cmd.docker
+    return (standby, (docker, convertString local))
+  where
+    mkOp (standby, (docker, local)) =
+        let name = containerName . getStandby $ standby in
+        buildOp ("upload-file: " <> local)
+                ("upload " <> local <> " in container " <> name)
+                noCheck
+                (blindRun docker [ "cp", convertString local , convertString name <> ":" <> tgt ] "")
+                noAction
+                noAction
+
+insertDir :: DevOp DirectoryPresent
+          -> FilePath
+          -> DevOp StandbyContainer
+          -> DevOp StandbyContainer
+insertDir mkDir tgt mkStandby = devop fst mkOp $ do
+    (DirectoryPresent local) <- mkDir
+    standby <- mkStandby
+    docker <- Cmd.docker
+    return (standby, (docker, convertString local))
+  where
+    mkOp (standby, (docker, local)) =
+        let name = containerName . getStandby $ standby in
+        buildOp ("upload-dir: " <> local)
+                ("upload " <> local <> " in container " <> name)
+                noCheck
+                (blindRun docker [ "cp", convertString local , convertString name <> ":" <> tgt ] "")
+                noAction
+                noAction
+
 
 dockerized :: Name
+           -- ^ the name of the docker container
            -> DevOp DockerImage
+           -- ^ the image used to start this container
            -> Continued a
+           -- ^ the continued program to run in the container
+           -> (DevOp StandbyContainer -> DevOp StandbyContainer)
+           -- ^ an optional setup phase to modify the container. Use 'id' for
+           -- "no particular setup" or partially-apply 'insertFile' to add
+           -- extra data.
            -> DevOp (Dockerized a)
-dockerized name mkImage cont = declare op $ do
+dockerized name mkImage cont beforeStart = declare op $ do
     let obj = eval cont
     let (BinaryCall selfPath fArgs) = callback cont
     let args = fArgs TurnUp
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
-    let cbContainer = container name Wait mkImage mkCmd
-    Dockerized obj <$> cbContainer
+    let standby = standbyContainer name mkImage mkCmd
+    let container = getRunning  <$> runningContainer Wait (beforeStart standby)
+    Dockerized obj <$> container
   where
     op = buildPreOp ("dockerized-node: " <> name)
                     ("dockerize some node in the Docker image:" <> name)
@@ -203,19 +277,24 @@ resolveDockerRemote mkService = do
 --
 -- The functorial wrapper around the Daemon allows to setup networked daemons
 -- such as Listening (Daemon) from the Devops.Networking package.
+--
+-- The Continued below will get called with 'Upkeep' rather than 'TurnUp' so
+-- that the main forked thread does not die.
 dockerizedDaemon :: Name
                  -> DevOp DockerImage
                  -> Continued (f (Daemon a))
+                 -> (DevOp StandbyContainer -> DevOp StandbyContainer)
                  -> DevOp (DockerizedDaemon (f (Daemon a)))
-dockerizedDaemon name mkImage cont = declare op $ do
+dockerizedDaemon name mkImage cont beforeStart = declare op $ do
     let obj = eval cont
     let (BinaryCall selfPath fArgs) = callback cont
     let args = fArgs Upkeep
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
-    let cbContainer = container name NoWait mkImage mkCmd
     let ref = saveRef ("dockerized-daemon-ref: " <> name)
-    DockerizedDaemon obj <$> cbContainer <*> ref
+    let standby = standbyContainer name mkImage mkCmd
+    let container = getRunning <$> runningContainer NoWait (beforeStart standby)
+    DockerizedDaemon obj <$> container <*> ref
   where
     op = buildPreOp ("dockerized-daemon: " <> name)
                     ("dockerize and let run some node in the Docker image:" <> name)
