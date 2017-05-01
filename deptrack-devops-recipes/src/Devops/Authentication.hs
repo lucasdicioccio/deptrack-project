@@ -31,15 +31,21 @@ data SSHSignedUserKey = SSHSignedUserKey { signedKeyPair     :: !SSHKeyPair
                                          , signedCertificate :: !CertificateFile
                                          }
 
+preExistingKeyPair :: FilePath -> DevOp SSHKeyPair
+preExistingKeyPair privPath = do
+    !priv <- preExistingFile privPath
+    !pub <- preExistingFile (privPath <> ".pub")
+    return $ SSHKeyPair (Private priv) (Public pub)
+
 -- | Creates an SSH RSA-2048-bit key.
 sshKeyPair :: DevOp DirectoryPresent -> Name -> DevOp (SSHKeyPair)
 sshKeyPair dir name = declare (noop "ssh-key" $ "ssh-key:" <> name) $ do
   (DirectoryPresent dirpath) <- dir
   let privKeyPath = dirpath </> Text.unpack name
   -- TODO: pluralize to generatedFiles for multiple-output commands
-  (_,_,privPath@(FilePresent priv)) <- generatedFile privKeyPath sshKeygen (mkCommands privKeyPath)
-  !pub <- preExistingFile (priv <> ".pub")
-  return (SSHKeyPair (Private privPath) (Public pub))
+  (_,_,priv@(FilePresent privPath)) <- generatedFile privKeyPath sshKeygen (mkCommands privKeyPath)
+  !pub <- preExistingFile (privPath <> ".pub")
+  return (SSHKeyPair (Private priv) (Public pub))
   where mkCommands privKeyPath = return [ "-q"
                      , "-t", "rsa", "-b", "2048"
                      , "-N", ""
