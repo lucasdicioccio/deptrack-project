@@ -131,7 +131,7 @@ provisioning the image mounted at a specific location, we can use generic DevOp
 functions to provision from within a chroot. When we turnup this example, the
 binary will copy itself into the mounted image, then call itself back using
 _chroot_. This callback mechanism works because this example binary parses
-command line arguments slightly differently from the `defaultMain` (i.e., some
+command line arguments slightly differently from the `simpleMain` (i.e., some
 magic value triggers the codepath for provisioning the chroot),
 
 # deptrack-devops-example-docker
@@ -179,6 +179,21 @@ StaticPointers GHC extension.
 The code in `app/Docker.hs` is laid out to show the two various callback
 mechanisms (in the chroot: we use a hardcoded path into the code; whereas in
 docker: we interpret a Base64-encode closure that was passed before).
+
+# deptrack-devops-example-dockerized-website
+
+This example is similar to `deptrack-devops-example-docker` above.
+
+The output of `dot -Tpng -o deptrack-devops-example-dockerized-website.png <(
+deptrack-devops-example-dockerized-website dot )` is as follows:
+![graph of deptrack-devops-example-dockerized-website dependencies](deptrack-devops-example-dockerized-website.png)
+
+The two main difference with the previous example are as follows:
+
+- uses `App` with `appMain` as a cleaner way to address nested binary calls
+  than `simpleMain` with magic arguments.
+- uses `Ref` and `delayed` evaluation to wait for an unknown to become
+  available (the IP address of the docker container)
 
 # deptrack-devops-example-spark
 
