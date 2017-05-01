@@ -69,10 +69,10 @@ dock self = void $ do
 
     -- a typical container where we copy the file before starting
     let mkCmd = return $ (ImportedContainerCommand (FilePresent "/usr/bin/touch") ["hello-world"])
-    container "deptrack-devops-example-container-touch"
-              Wait
-              image
-              mkCmd
+    let standby = standbyContainer "deptrack-devops-example-container-touch"
+                                   image
+                                   mkCmd
+    runningContainer Wait standby
 
     let dockerCallback clo =
             BinaryCall self (const $ magicDockerArgv:[convertString $ opClosureToB64 clo])
@@ -83,6 +83,7 @@ dock self = void $ do
                               (continue (closure $ static dockerDevOpContent)
                                         unclosure
                                         dockerCallback)
+                              id -- no modifications before start
 
     -- committedImage artifact
     fetchFile "/opt/postgrest-bin" artifact

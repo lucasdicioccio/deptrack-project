@@ -86,6 +86,7 @@ stages LocalHost self fixCall = void $ do
     let website = dockerizedDaemon "deptrack-devops-example-dockerized-website"
                                    image
                                    (continueConst dockerDevOpContent dockerCallback)
+                                   id -- no modifications before start
 
     -- the locally-running reverse proxy
     let siteproxy = delay (resolveDockerRemote website) (mainNginxProxy . adapt)
