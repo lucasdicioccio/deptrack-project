@@ -4,7 +4,8 @@
 module Devops.Callback (
     SelfPath
   , MagicArg
-  , CallBackMethod (..)
+  , BinaryCall (..)
+  , binaryCall
   , Continued
   , continue
   , eval
@@ -20,19 +21,25 @@ type MagicArg = String
 -- | Method to callback a non-local node.
 -- TODO: develop on this to be able to represent parasited/chrooted calls
 --       ideally we also need a way to "link" long-lived processes such as Backends together
-data CallBackMethod = BinaryCall !FilePath !(Method -> [String])
+data BinaryCall = BinaryCall {
+    _callbackBinaryPath :: !FilePath
+  , _callbackArgs       :: !(Method -> [String])
+  }
+
+binaryCall :: FilePath -> (Method -> [String]) -> BinaryCall
+binaryCall = BinaryCall
 
 data Continued a = forall obj. Continued {
     _arg        :: obj
   , _mkDevOp    :: obj -> DevOp a
-  , _mkCallback :: obj -> CallBackMethod
+  , _mkCallback :: obj -> BinaryCall
   }
 
 continue :: obj
          -- ^ A value.
          -> (obj -> DevOp a)
          -- ^ A function to build a DevOp.
-         -> (obj -> CallBackMethod)
+         -> (obj -> BinaryCall)
          -- ^ A function to build a suitable callback.
          -> Continued a
 continue = Continued
@@ -40,5 +47,5 @@ continue = Continued
 eval :: Continued a -> a
 eval (Continued arg f _) = runDevOp $ f arg
 
-callback :: Continued a -> CallBackMethod
+callback :: Continued a -> BinaryCall
 callback (Continued arg _ g) = g arg

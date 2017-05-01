@@ -87,7 +87,7 @@ dock self = void $ do
     -- committedImage artifact
     fetchFile "/opt/postgrest-bin" artifact
   where
-    chrootCallback :: CallBackMethod
+    chrootCallback :: BinaryCall
     chrootCallback = BinaryCall self (const magicChrootArgv)
 
     baseImageConfig :: BaseImageConfig DockerBase

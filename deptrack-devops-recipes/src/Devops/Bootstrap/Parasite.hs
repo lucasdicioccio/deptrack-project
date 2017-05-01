@@ -118,7 +118,7 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- adapted from `Devops.Parasite`
 -- TODO unify the different ways of talking to a remote host
 remoted :: Typeable a
-        => (Closure (DevOp a) -> CallBackMethod)
+        => (Closure (DevOp a) -> BinaryCall)
         -> DevOp User
         -> Closure (DevOp a)
         -> DevOp ParasitedHost

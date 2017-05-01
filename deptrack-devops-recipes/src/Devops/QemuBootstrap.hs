@@ -40,7 +40,7 @@ synchedBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstr
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> (BaseImageConfig QemuBase) -- Configuration of the base image.
           -> GB Size
-          -> CallBackMethod
+          -> BinaryCall
           -> DevOp (BaseImage QemuBase)
 synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfileBackup x y))
 
@@ -58,7 +58,7 @@ dirtyBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> (BaseImageConfig QemuBase)  -- Configuration of the base image.
           -> GB Size
-          -> CallBackMethod
+          -> BinaryCall
           -> DevOp (BaseImage QemuBase)
 dirtyBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turnupfileBackup x y))
 
@@ -69,7 +69,7 @@ bootstrapWithImageCopyFunction ::
           -> NBDSlot   -- NBD device number to use during the bootstrap.
           -> (BaseImageConfig QemuBase)  -- Configuration of the base image.
           -> GB Size
-          -> CallBackMethod
+          -> BinaryCall
           -> DevOp (BaseImage QemuBase)
 bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     let qcow = qcow2Image (imgpath <> ".tmp") size

@@ -30,13 +30,13 @@ data BaseImageConfig a = BaseImageConfig {
   , cfgSuite  :: !(DebootstrapSuite a)
   }
 
--- TODO: refactor to take DevOp BaseImageConfig and DevOp CallBackMethod
+-- TODO: refactor to take DevOp BaseImageConfig and DevOp BinaryCall
 bootstrap :: Typeable a
           => FilePath                 -- Path receiving the image.
           -> DevOp DirectoryPresent   -- Directory receiving the debootstrap environment.
           -> (BaseImageConfig a)      -- Configuration of the base image.
           -> DeboostrapMounts         -- What to mount in the bootstrapped environment.
-          -> CallBackMethod
+          -> BinaryCall
           -> DevOp (BaseImage a)
 bootstrap imgpath bootstrapdir cfg mounts cb = devop fst mkOp $ do
     let src = localRepositoryFile selfPath

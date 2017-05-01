@@ -84,7 +84,7 @@ dock self eval = void $ do
     delayedEval d' eval
   where
     adapt = fmap exposed2listening . (fmap . fmap) nginxAsWebService
-    chrootCallback :: CallBackMethod
+    chrootCallback :: BinaryCall
     chrootCallback = BinaryCall self (const magicChrootArgv)
 
     baseImageConfig :: BaseImageConfig DockerBase
