@@ -20,13 +20,13 @@ import           Devops.Storage (FilePresent(..), FileContent, fileContent)
 import           Devops.Haskell (StackProject, stackProject, stackInstall)
 import           Devops.Debian.User (mereUser, group)
 import           Devops.Base (DevOp, buildOp, devop, noAction, noCheck)
-import           Devops.Cli (defaultMain)
+import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 import           Devops.Postgre (PGUser(..), PGDatabase(..), pgUser, pgDatabase, libpqDev)
 import           Devops.Service (daemon, Daemon, CommandArgs, DaemonConfig)
 
 main :: IO ()
-main = getArgs >>= defaultMain devtools [optimizeDebianPackages]
+main = getArgs >>= simpleMain devtools [optimizeDebianPackages]
   where
     devtools :: DevOp ()
     devtools = void $ do

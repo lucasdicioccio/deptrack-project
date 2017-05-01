@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StaticPointers    #-}
 {-# LANGUAGE RankNTypes        #-}
@@ -12,7 +13,7 @@ import           System.Environment (getArgs)
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64, SelfPath)
+import           Devops.Cli
 import           Devops.Debian (deb)
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Docker
@@ -29,71 +30,75 @@ import           Devops.Storage
 import           Devops.Haskell
 import           Devops.Debian.User
 
+--------------------------------------------------------------------
+
+-- | Represents the main entry point in our function.
+data Stage =
+    LocalHost
+  -- ^ The binary was called (e.g., by a human) on the local-host.
+  | InChroot
+  -- ^ The binary was called in the chroot for configuring the base image.
+  | InDocker
+  -- ^ The binary was called in docker as a main program.
+
+parseStage :: [String] -> (Stage, Method)
+parseStage = \case
+    ("_chroot_":arg:[]) -> (InChroot, appMethod arg)
+    ("_docker_":arg:[]) -> (InDocker, appMethod arg)
+    (arg:[])            -> (LocalHost, appMethod arg)
+    args                -> error $ "unparsed args: " ++ show args
+
+unparseStage :: Stage -> Method -> [String]
+unparseStage stage m = case stage of
+    LocalHost -> [ methodArg m ]
+    InChroot  -> [ "_chroot_", methodArg m ]
+    InDocker  -> [ "_docker_", methodArg m ]
+
+--------------------------------------------------------------------
+
 main :: IO ()
 main = do
-    args <- getArgs
-    go args
-  where
-    go xs | isMagicChrootArgv xs = chrootNestedSetup
-          | isMagicDockerArgv xs = base64EncodedNestedSetup (drop 1 xs)
-          | otherwise            = dockerSetup xs
+    let app = App parseStage unparseStage stages [optimizeDebianPackages] :: App Stage
+    appMain app
 
-    chrootNestedSetup :: IO ()
-    chrootNestedSetup = void $ do
-        defaultMain chrootImageContent [optimizeDebianPackages] ["up"]
 
-    base64EncodedNestedSetup :: [String] -> IO ()
-    base64EncodedNestedSetup (b64:[]) = void $ do
-        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp ()
-        defaultMain target [optimizeDebianPackages] ["upkeep"]
-    base64EncodedNestedSetup _ = error "invalid args for magic docker callback"
-
-    dockerSetup :: [String] -> IO ()
-    dockerSetup args = do
-        self <- readSelf
-        let f c ys = defaultMain c [optimizeDebianPackages] ys
-        let eval c = OpFunctions noCheck (f c ["up"]) (f c ["down"]) noAction
-        f (dock self eval) args
-
-readSelf :: IO SelfPath
-readSelf = takeWhile (/= '\NUL') <$> readFile "/proc/self/cmdline"
-
-magicChrootArgv = ["*", "*", "*"]
-isMagicChrootArgv args = args == magicChrootArgv
-
-magicDockerArgv = "~~~"
-isMagicDockerArgv args = take 1 args == [magicDockerArgv]
-
+--------------------------------------------------------------------
+tempdir, bootstrapBin :: FilePath
 tempdir = "/opt/dockbootstrap-website"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops-website"
 
-dock :: SelfPath -> Evaluator OpFunctions -> DevOp ()
-dock self eval = void $ do
-    let image = dockerImage "deptrack-dockerized-website-example" (simpleBootstrap tempdir baseImageConfig chrootCallback)
+stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp ()
+stages InChroot _ _           = chrootImageContent
+stages InDocker _ _           = void $ dockerDevOpContent
+stages LocalHost self fixCall = void $ do
+    -- prepare callbacks for binary calls
+    let chrootCallback = binaryCall self (fixCall InChroot)
+    let dockerCallback = binaryCall self (fixCall InDocker)
 
-    let dockerCallback clo =
-            BinaryCall self (const $ magicDockerArgv:[convertString $ opClosureToB64 clo])
+    -- prepare callback for delayed call
+    let evalDelay c = OpFunctions noCheck (miniMain c ["up"]) (miniMain c ["down"]) noAction
 
-    -- a nifty callback where we pull arbitrary stuff in
-    let d = dockerizedDaemon "deptrack-devops-example-dockerized-website"
-                             image
-                             (continue (closure $ static dockerDevOpContent)
-                                       unclosure
-                                       dockerCallback)
-    let d' = delay (resolveDockerRemote d) (mainNginxProxy . adapt)
-    delayedEval d' eval
+    -- the base image
+    let image = dockerImage "deptrack-dockerized-website-example"
+                            (simpleBootstrap tempdir baseImageConfig chrootCallback)
+
+    -- the website running in docker
+    let website = dockerizedDaemon "deptrack-devops-example-dockerized-website"
+                                   image
+                                   (continueConst dockerDevOpContent dockerCallback)
+
+    -- the locally-running reverse proxy
+    let siteproxy = delay (resolveDockerRemote website) (mainNginxProxy . adapt)
+
+    delayedEval siteproxy evalDelay
   where
+    miniMain c ys = simpleMain c [optimizeDebianPackages] ys
     adapt = fmap exposed2listening . (fmap . fmap) nginxAsWebService
-    chrootCallback :: BinaryCall
-    chrootCallback = BinaryCall self (const magicChrootArgv)
-
-    baseImageConfig :: BaseImageConfig DockerBase
-    baseImageConfig =
-        BaseImageConfig bootstrapBin xenial
+    baseImageConfig = BaseImageConfig bootstrapBin xenial
 
 mainNginxProxy :: Remoted (Listening WebService) -> DevOp (Exposed (Daemon Nginx))
 mainNginxProxy upstream = do
-    let cfgdir = "/opt/rundir" 
+    let cfgdir = "/opt/rundir"
     let cfg = proxyPass cfgdir "dicioccio.fr" (return upstream)
     reverseProxy cfgdir [cfg]
 

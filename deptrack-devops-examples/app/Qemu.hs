@@ -6,7 +6,7 @@ import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
 import           Devops.Base (DevOp)
-import           Devops.Cli (defaultMain)
+import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 import           Devops.Networking
 import           Devops.Qemu
@@ -26,11 +26,11 @@ main = do
     vmSetup (pubkeypath:args) = do
         self <- readSelf
         pubkeys <- readPubkeyContent pubkeypath
-        defaultMain (vm self pubkeys) [optimizeDebianPackages] args
+        simpleMain (vm self pubkeys) [optimizeDebianPackages] args
 
     chrootNestedSetup :: PubkeyContent -> IO ()
     chrootNestedSetup pubkeys = do
-        defaultMain (nbdBootstrapConfig nbdSlot (baseImageConfig pubkeys) imageContent)
+        simpleMain (nbdBootstrapConfig nbdSlot (baseImageConfig pubkeys) imageContent)
                     [optimizeDebianPackages]
                     ["up"]
 

@@ -10,11 +10,11 @@ import           Devops.Storage (FileContent, fileContent)
 import           Devops.Haskell (stackPackage)
 import           Devops.Debian.User (mereUser)
 import           Devops.Base (DevOp)
-import           Devops.Cli (defaultMain)
+import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 
 main :: IO ()
-main = getArgs >>= defaultMain devtools [optimizeDebianPackages]
+main = getArgs >>= simpleMain devtools [optimizeDebianPackages]
   where
     devtools :: DevOp ()
     devtools = void $ do

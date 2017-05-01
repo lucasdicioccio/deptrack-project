@@ -5,7 +5,7 @@ module Devops.Cli (
     Method (..)
   , applyMethod
   -- * Building main programs
-  , defaultMain
+  , simpleMain
   , SelfPath
   , ForestOptimization
   , App (..)
@@ -70,16 +70,16 @@ applyMethod transformations originalForest meth = do
 
 -- | Simple main function for a single operation.
 --
--- You should use this 'defaultMain' for simple configuration binaries, more
+-- You should use this 'simpleMain' for simple configuration binaries, more
 -- involved architectures shoul almost need a 'App' or 'appMain'.
-defaultMain :: DevOp a
-            -- ^ an operation
-            -> [(Forest PreOp -> Forest PreOp)]
-            -- ^ forest transformations to optimize the resulting graph
-            -> [String]
-            -- ^ args
-            -> IO ()
-defaultMain devop optimizations = go
+simpleMain :: DevOp a
+           -- ^ an operation
+           -> [(Forest PreOp -> Forest PreOp)]
+           -- ^ forest transformations to optimize the resulting graph
+           -> [String]
+           -- ^ args
+           -> IO ()
+simpleMain devop optimizations = go
   where
     forest = getDependenciesOnly devop
     call m = applyMethod optimizations forest m

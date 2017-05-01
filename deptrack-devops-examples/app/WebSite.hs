@@ -9,14 +9,14 @@ import           Devops.Storage (FileContent, fileContent)
 import           Devops.Debian.User (mereUser, userDirectory)
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Base (DevOp)
-import           Devops.Cli (defaultMain)
+import           Devops.Cli (simpleMain)
 import           Devops.Git (GitUrl, gitClone)
 import           Devops.Optimize (optimizeDebianPackages)
 import           Devops.Nginx
 import qualified Devops.StaticSite as StaticSite
 
 main :: IO ()
-main = getArgs >>= defaultMain webSites [optimizeDebianPackages]
+main = getArgs >>= simpleMain webSites [optimizeDebianPackages]
   where
     webSites :: DevOp ()
     webSites = void $ reverseProxy "/opt/rundir" nginxConfigs

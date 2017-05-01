@@ -36,6 +36,6 @@ main :: IO ()
 main = do
   host:args <- getArgs
   case args of
-    "-v":args' -> defaultMain (sampleDONode True host)  [optimizeDebianPackages] args'
-    args'      -> defaultMain (sampleDONode False host)  [optimizeDebianPackages] args'
+    "-v":args' -> simpleMain (sampleDONode True host)  [optimizeDebianPackages] args'
+    args'      -> simpleMain (sampleDONode False host)  [optimizeDebianPackages] args'
 

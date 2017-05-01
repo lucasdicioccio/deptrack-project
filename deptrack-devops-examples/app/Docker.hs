@@ -16,7 +16,7 @@ import           Devops.Base (DevOp)
 import           Devops.BaseImage
 import           Devops.Binary (Binary, HasBinary)
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64, SelfPath)
+import           Devops.Cli (simpleMain, opClosureFromB64, opClosureToB64, SelfPath)
 import           Devops.Debian (deb)
 import           Devops.Docker
 import           Devops.DockerBootstrap
@@ -38,18 +38,18 @@ main = do
 
     chrootNestedSetup :: IO ()
     chrootNestedSetup = void $ do
-        defaultMain chrootImageContent [optimizeDebianPackages] ["up"]
+        simpleMain chrootImageContent [optimizeDebianPackages] ["up"]
 
     base64EncodedNestedSetup :: [String] -> IO ()
     base64EncodedNestedSetup (b64:[]) = void $ do
         let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp ()
-        defaultMain target [optimizeDebianPackages] ["up"]
+        simpleMain target [optimizeDebianPackages] ["up"]
     base64EncodedNestedSetup _ = error "invalid args for magic docker callback"
 
     dockerSetup :: [String] -> IO ()
     dockerSetup args = do
         self <- readSelf
-        defaultMain (dock self) [optimizeDebianPackages] args
+        simpleMain (dock self) [optimizeDebianPackages] args
 
 readSelf :: IO SelfPath
 readSelf = takeWhile (/= '\NUL') <$> readFile "/proc/self/cmdline"

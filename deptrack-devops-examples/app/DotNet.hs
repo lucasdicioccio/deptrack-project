@@ -5,7 +5,7 @@ module Main where
 import           System.Environment (getArgs)
 import           System.Environment (getArgs)
 
-import           Devops.Cli (defaultMain)
+import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 
 import           GHC.TypeLits
@@ -19,7 +19,7 @@ import           Devops.Debian.User
 import qualified Devops.Debian.Commands as Cmd
 
 main :: IO ()
-main = getArgs >>= defaultMain helloDaemon [optimizeDebianPackages]
+main = getArgs >>= simpleMain helloDaemon [optimizeDebianPackages]
 
 daemonGroup :: DevOp Group
 daemonGroup = group "user"

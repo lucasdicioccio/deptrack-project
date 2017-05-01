@@ -3,9 +3,9 @@ module Main where
 
 import           System.Environment (getArgs)
 
-import           Devops.Cli (defaultMain)
+import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 import           Devops.Debian.Packages (jenkins)
 
 main :: IO ()
-main = getArgs >>= defaultMain jenkins [optimizeDebianPackages]
+main = getArgs >>= simpleMain jenkins [optimizeDebianPackages]

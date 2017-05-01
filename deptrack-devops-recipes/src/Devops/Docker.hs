@@ -210,7 +210,7 @@ dockerizedDaemon :: Name
 dockerizedDaemon name mkImage cont = declare op $ do
     let obj = eval cont
     let (BinaryCall selfPath fArgs) = callback cont
-    let args = fArgs TurnUp
+    let args = fArgs Upkeep
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let cbContainer = container name NoWait mkImage mkCmd
