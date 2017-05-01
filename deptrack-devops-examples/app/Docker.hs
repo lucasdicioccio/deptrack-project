@@ -80,8 +80,9 @@ dock self = void $ do
     -- a nifty callback where we pull arbitrary stuff in
     let artifact = dockerized "deptrack-devops-example-docker-callback-build"
                               image
-                              (continueClosure (closure $ static dockerDevOpContent)
-                                               (dockerCallback))
+                              (continue (closure $ static dockerDevOpContent)
+                                        unclosure
+                                        dockerCallback)
 
     -- committedImage artifact
     fetchFile "/opt/postgrest-bin" artifact

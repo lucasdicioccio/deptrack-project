@@ -77,8 +77,9 @@ dock self eval = void $ do
     -- a nifty callback where we pull arbitrary stuff in
     let d = dockerizedDaemon "deptrack-devops-example-dockerized-website"
                              image
-                             (continueClosure (closure $ static dockerDevOpContent)
-                                              dockerCallback)
+                             (continue (closure $ static dockerDevOpContent)
+                                       unclosure
+                                       dockerCallback)
     let d' = delay (resolveDockerRemote d) (mainNginxProxy . adapt)
     delayedEval d' eval
   where

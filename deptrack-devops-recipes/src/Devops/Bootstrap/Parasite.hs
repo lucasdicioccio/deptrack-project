@@ -117,30 +117,39 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- | Remotely execute a `Closure` on some parasited host
 -- adapted from `Devops.Parasite`
 -- TODO unify the different ways of talking to a remote host
-remoted :: Typeable a => ClosureCallBack a -> DevOp User -> Closure (DevOp a) -> DevOp ParasitedHost -> DevOp (Remoted a)
-remoted mkCb usr clo host =
-  devop fst mkOp (do
+remoted :: Typeable a
+        => (Closure (DevOp a) -> CallBackMethod)
+        -> DevOp User
+        -> Closure (DevOp a)
+        -> DevOp ParasitedHost
+        -> DevOp (Remoted a)
+remoted mkCb usr clo host = devop fst mkOp $ do
     let remoteObj = runDevOp $ unclosure clo
     let (BinaryCall selfPath fArgs) = mkCb clo
     let args = fArgs TurnUp
     u <- usr
     c <- ssh
     (ParasitedHost _ _ r) <- host
-    return (Remoted r remoteObj,(selfPath, args, c, u, r)))
-
-  where ssh = binary :: DevOp (Binary "ssh")
-        mkOp (_, (rpath, args, c, u, r)) = buildOp
-              ("remote-closure: " <> pack rpath <> " @" <> pack (show $ resolvedKey r))
-              ("calls '" <> pack rpath <> "'")
-              noCheck
-              (resolver r >>= \ (Remote ip) -> blindRun c (sshCmd rpath u ip args) "")
-              noAction
-              noAction
-        sshCmd rpath u ip args = [ "-o", "StrictHostKeyChecking no"
-                                 , "-o", "UserKnownHostsFile /dev/null"
-                                 , "-l", unpack (userName u), unpack ip
-                                 , remoteExecution rpath args ]
-        remoteExecution rpath args = unwords $ [ "chmod", "+x", rpath, ";", rpath ] ++ args ++ [ ";"]
+    return (Remoted r remoteObj,(selfPath, args, c, u, r))
+  where
+    ssh = binary :: DevOp (Binary "ssh")
+    mkOp (_, (rpath, args, c, u, r)) = buildOp
+            ("remote-closure: " <> pack rpath <> " @" <> pack (show $ resolvedKey r))
+            ("calls '" <> pack rpath <> "'")
+            noCheck
+            (resolver r >>= \ (Remote ip) -> blindRun c (sshCmd rpath u ip args) "")
+            noAction
+            noAction
+    sshCmd rpath u ip args = [
+        "-o", "StrictHostKeyChecking no"
+      , "-o", "UserKnownHostsFile /dev/null"
+      , "-l", unpack (userName u), unpack ip
+      , remoteExecution rpath args
+      ]
+    remoteExecution rpath args = unwords $ [
+        "chmod", "+x", rpath, ";"
+      , rpath
+      ] ++ args ++ [ ";" ]
 
 -- | Remotely execute a `Closure` on some parasited host passing it an argument at runtime
 --

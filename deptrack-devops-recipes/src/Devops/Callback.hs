@@ -9,12 +9,7 @@ module Devops.Callback (
   , continue
   , eval
   , callback
-  , ClosureCallBack
-  , continueClosure
   ) where
-
-import           Control.Distributed.Closure (Closure, unclosure)
-import           Data.Typeable (Typeable)
 
 import           Devops.Base
 import           Devops.Cli
@@ -47,15 +42,3 @@ eval (Continued arg f _) = runDevOp $ f arg
 
 callback :: Continued a -> CallBackMethod
 callback (Continued arg _ g) = g arg
-
--- | Function to build a callback to a Closure of a DevOp.
-type ClosureCallBack a = Closure (DevOp a) -> CallBackMethod
-
--- | You should import this function only in leaf code rather than library code.
-continueClosure :: Typeable a
-                => Closure (DevOp a)
-                -- ^ A closure you want to serialize.
-                -> ClosureCallBack a
-                -- ^ An encoder for the closure.
-                -> Continued a
-continueClosure clo ccb = continue clo unclosure ccb
