@@ -2,9 +2,7 @@
 {-# LANGUAGE RankNTypes                #-}
 
 module Devops.Callback (
-    SelfPath
-  , MagicArg
-  , BinaryCall (..)
+    BinaryCall (..)
   , binaryCall
   , Continued
   , continue
@@ -16,24 +14,37 @@ module Devops.Callback (
 import           Devops.Base
 import           Devops.Cli
 
-type SelfPath = FilePath
-type MagicArg = String
-
 -- | Method to callback a non-local node.
 data BinaryCall = BinaryCall {
     _callbackBinaryPath :: !FilePath
+  -- ^ The callback to a binary that will understand '_callbackArgs'.
   , _callbackArgs       :: !(Method -> [String])
+  -- ^ A function to build arguments for a given 'Method'.
   }
 
+-- | Constructs a 'BinaryCall'.
 binaryCall :: FilePath -> (Method -> [String]) -> BinaryCall
 binaryCall = BinaryCall
 
+-- | Represents a continuation-based computation where we can both:
+-- - build a DevOp with '_mkDevOp'
+-- - compute a BinaryCall with '_mkCallback', the BinaryCall should be another
+-- DepTrack program that will apply the currently-applying method on a DevOp
+-- semantically-equivalent to the one which is built with '_mkDevOp'
+--
+-- The implementation uses an ExistentialQuantification over the continuation
+-- argument to show that there is no other option but to apply either of
+-- '_mkDevOp' or '_mkCallback' to make progress.
+--
+-- This object is useful to capture DevOp that must be run on a remote or
+-- containerized machine.
 data Continued a = forall obj. Continued {
     _arg        :: obj
   , _mkDevOp    :: obj -> DevOp a
   , _mkCallback :: obj -> BinaryCall
   }
 
+-- | Constructs a 'Continued' object.
 continue :: obj
          -- ^ A value.
          -> (obj -> DevOp a)
@@ -43,6 +54,10 @@ continue :: obj
          -> Continued a
 continue = Continued
 
+-- | Constructs a 'Continued' from a DevOp with no free variable and its
+-- equivalent BinaryCall.
+--
+-- This function's BinaryCall should respect the same contract as 'continue'.
 continueConst :: DevOp a -> BinaryCall -> Continued a
 continueConst tgt call =
     let obj = ()
@@ -50,8 +65,10 @@ continueConst tgt call =
         fCall () = call
     in continue obj fDevop fCall
 
+-- | Observes the result of a Continued object.
 eval :: Continued a -> a
 eval (Continued arg f _) = runDevOp $ f arg
 
+-- | Constructs a 'BinaryCall' that will call-back the Continued object.
 callback :: Continued a -> BinaryCall
 callback (Continued arg _ g) = g arg

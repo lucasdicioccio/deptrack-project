@@ -16,7 +16,7 @@ import           Devops.Base (DevOp)
 import           Devops.BaseImage
 import           Devops.Binary (Binary, HasBinary)
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64)
+import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64, SelfPath)
 import           Devops.Debian (deb)
 import           Devops.Docker
 import           Devops.DockerBootstrap

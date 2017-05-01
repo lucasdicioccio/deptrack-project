@@ -12,7 +12,7 @@ import           System.Environment (getArgs)
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
-import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64)
+import           Devops.Cli (defaultMain, opClosureFromB64, opClosureToB64, SelfPath)
 import           Devops.Debian (deb)
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Docker

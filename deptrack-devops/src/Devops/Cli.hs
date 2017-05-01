@@ -4,15 +4,19 @@
 module Devops.Cli (
     Method (..)
   , applyMethod
-  , getDependenciesOnly
-  , opClosureFromB64
-  , opClosureToB64
-  , graphize
+  -- * Building main programs
   , defaultMain
+  , SelfPath
+  , ForestOptimization
   , App (..)
   , appMain
   , appMethod
   , methodArg
+  -- * Utilities
+  , getDependenciesOnly
+  , graphize
+  , opClosureFromB64
+  , opClosureToB64
   ) where
 
 import           Control.Distributed.Closure (Closure, unclosure)
@@ -33,6 +37,8 @@ import           Devops.Actions              (concurrentTurndown,
                                               listUniqNodes, checkStatuses)
 import           Devops.Base                 (DevOp, OpUniqueId, PreOp, preOpUniqueId)
 
+--------------------------------------------------------------------
+
 data Method =
     TurnUp
   | TurnDown
@@ -42,22 +48,7 @@ data Method =
   | CheckDot
   | List
 
-getDependenciesOnly :: DevOp a -> Forest PreOp
-getDependenciesOnly = snd . runIdentity . evalDepForest1
-
-opClosureFromB64 :: Typeable a => ByteString -> Closure (DevOp a)
-opClosureFromB64 b64 = do
-    let bstr = B64.decode b64
-    let encodedClosure = either (error "invalid base64") id bstr
-    Binary.decode encodedClosure
-
-opClosureToB64 :: Typeable a => Closure (DevOp a) -> ByteString
-opClosureToB64 clo =
-    B64.encode $ Binary.encode clo
-
-graphize :: Forest PreOp -> GraphData PreOp OpUniqueId
-graphize forest = buildGraph preOpUniqueId forest
-
+--------------------------------------------------------------------
 applyMethod :: [(Forest PreOp -> Forest PreOp)]
             -> Forest PreOp
             -> Method
@@ -75,6 +66,12 @@ applyMethod transformations originalForest meth = do
     CheckDot -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
     List     -> listUniqNodes forest
 
+--------------------------------------------------------------------
+
+-- | Simple main function for a single operation.
+--
+-- You should use this 'defaultMain' for simple configuration binaries, more
+-- involved architectures shoul almost need a 'App' or 'appMain'.
 defaultMain :: DevOp a
             -- ^ an operation
             -> [(Forest PreOp -> Forest PreOp)]
@@ -99,11 +96,13 @@ defaultMain devop optimizations = go
                     , "    up, down, upkeep, print, dot, check-dot, list"
                     ]
 
--- | An optimization on PreOp forests.
-type ForestOptimization = Forest PreOp -> Forest PreOp
+--------------------------------------------------------------------
 
 -- | A FilePath corresponding to the file with the currently-executing binary.
 type SelfPath = FilePath
+
+-- | An optimization on PreOp forests.
+type ForestOptimization = Forest PreOp -> Forest PreOp
 
 -- | A builder for app that can be useful for defining an infrastructure as a
 -- recursive structure where the "main entry point" of the recursion is the
@@ -119,14 +118,19 @@ data App arch = App {
   , _opts        :: [ForestOptimization]
   }
 
+-- | DefaultMain for 'App'.
 appMain :: App a -> IO ()
 appMain App{..} = do
-  self <- getExecutablePath
-  args <- getArgs
-  let (arch, meth) = _parseArgs args
-  let forest = getDependenciesOnly $ _target arch self _revParse
-  applyMethod _opts forest meth
+    self <- getExecutablePath
+    args <- getArgs
+    let (arch, meth) = _parseArgs args
+    let forest = getDependenciesOnly $ _target arch self _revParse
+    applyMethod _opts forest meth
 
+-- | Unsafely parse a 'Method' from what could be a command line argument.
+--
+-- (NB. unsafe means this function is partial, you should use this function in
+-- conjunction with 'methodArg' for the reverse parse and you will be fine).
 appMethod :: String -> Method
 appMethod "up"        = TurnUp
 appMethod "down"      = TurnDown
@@ -137,6 +141,8 @@ appMethod "check-dot" = CheckDot
 appMethod "list"      = List
 appMethod str         = error $ "unparsed appMethod: " ++ str
 
+-- | Serializes a 'Method' to what should be a command-line argument later
+-- parsed via 'appMethod'.
 methodArg :: Method -> String
 methodArg TurnUp   = "up"
 methodArg TurnDown = "down"
@@ -145,3 +151,34 @@ methodArg Print    = "print"
 methodArg Dot      = "dot"
 methodArg CheckDot = "check-dot"
 methodArg List     = "list"
+
+--------------------------------------------------------------------
+
+-- | Evaluates the dependencies of a DevOp, discarding any result.
+getDependenciesOnly :: DevOp a -> Forest PreOp
+getDependenciesOnly = snd . runIdentity . evalDepForest1
+
+-- | Builds a Graph from dependencies represented as a Forest.
+--
+-- Nodes with a same hash in the Forest will correspond to the same node in the
+-- graph, hence, it's possible to create cycles by mistake if two nodes have a
+-- same hash by mistake (this is possible if the hash does not depend on all
+-- arguments to a DevOp).
+graphize :: Forest PreOp -> GraphData PreOp OpUniqueId
+graphize forest = buildGraph preOpUniqueId forest
+
+-- | Helper to deal with App when you want to use Closures as a
+-- serialization/deserialization mechanism.
+--
+-- You will likely add 'opClosureFromB64' in the '_parseArgs' field of your
+-- 'App' and 'opClosureToB64' in the '_revParse' field.
+opClosureFromB64 :: Typeable a => ByteString -> Closure (DevOp a)
+opClosureFromB64 b64 = do
+    let bstr = B64.decode b64
+    let encodedClosure = either (error "invalid base64") id bstr
+    Binary.decode encodedClosure
+
+-- | Dual to 'opClosureFromB64'.
+opClosureToB64 :: Typeable a => Closure (DevOp a) -> ByteString
+opClosureToB64 clo =
+    B64.encode $ Binary.encode clo
