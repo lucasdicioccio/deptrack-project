@@ -19,7 +19,7 @@ import           Devops.Debian.Base        (deb)
 import           Devops.Debian.Commands    (git)
 import           Devops.Debian.User        (Group (..), User (..),
                                             directoryPermissions, homeDirPath,
-                                            mereUser, preExistingUser)
+                                            user, group, noExtraGroup, preExistingUser)
 import           Devops.Git                (GitRepo (..), gitClone, gitDir)
 import           Devops.Haskell            (stackPackage)
 import           Devops.Optimize           (optimizeDebianPackages)
@@ -73,7 +73,8 @@ stages (Local hn key)  self fixCall = void $ do
 
 exe               = "deptrack-devops-example-devbox"
 root              = preExistingUser "root"
-devUser           = mereUser "curry"
+devGroup          = group "curry"
+devUser           = user "curry" devGroup noExtraGroup
 allIps            = "0.0.0.0"
 dropletConfig key = standardDroplet { size = G4, configImageSlug = ubuntuXenialSlug, keys = [key] }
 
@@ -88,7 +89,7 @@ parasitedHost dropletName key = do
 devtools :: DevOp ()
 devtools = void $ do
         packages
-        dotFiles (dotFilesDir devUser)
+        dotFiles (dotFilesDir ((,) <$> devUser <*> devGroup))
 
 packages :: DevOp ()
 packages = void $ do
@@ -98,23 +99,24 @@ packages = void $ do
     deb "graphviz"
     deb "stack"
 
-dotFilesDir :: DevOp User -> DevOp (User, DirectoryPresent)
-dotFilesDir mkUsr = do
-  User u <- mkUsr
+dotFilesDir :: DevOp (User, Group) -> DevOp (User, DirectoryPresent)
+dotFilesDir mkUsrGrp = do
+  (User u, _) <- mkUsrGrp
   let home = homeDirPath u
       dotfilesDir = directory $ home </> "dotfiles"
-  d <- directoryPermissions (pure (User u, Group u)) dotfilesDir
+  d <- directoryPermissions mkUsrGrp dotfilesDir
   return (User u, d)
 
 dotFiles :: DevOp (User, DirectoryPresent) -> DevOp [FilePresent]
 dotFiles mkDirUser = do
-  (u, d) <- mkDirUser
-  let repo = gitClone "https://github.com/abailly/dotfiles" "master" git (pure d)
+  let u = fmap fst mkDirUser
+  let d = fmap snd mkDirUser
+  let repo = gitClone "https://github.com/abailly/dotfiles" "master" git d
   forM [ ".tmux.conf"
        , ".emacs"
        , ".gitconfig"
        , ".bash_profile"
-       ] $ symlinkFile (pure u) repo
+       ] $ symlinkFile u repo
 
 symlinkFile :: DevOp User -> DevOp GitRepo -> FilePath -> DevOp FilePresent
 symlinkFile mkUser mkRepo filepath = do
