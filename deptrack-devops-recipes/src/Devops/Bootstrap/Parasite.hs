@@ -184,3 +184,34 @@ remotedWith mkAction usr clo host =
                                 , "-l", unpack (userName u), unpack ip
                                 , remoteExecution rpath b64 ]
         remoteExecution rpath b64 = unwords [ "chmod", "+x", rpath, ";", rpath, magicRemoteArgv, unpack b64 , ";"]
+
+
+-- | Remotely callback some `Continued a` on some parasited host.
+--
+remoteContinued :: (Typeable a)
+               => DevOp User -> Continued a -> DevOp ParasitedHost -> DevOp (Remoted a)
+remoteContinued usr cont host =
+  devop fst mkOp (do
+              u <- usr
+              c <- ssh
+              let obj = eval cont
+                  (BinaryCall _ fArgs) = callback cont
+                  args = fArgs TurnUp
+              (ParasitedHost rpath _ r) <- host
+              return (Remoted r obj,(rpath, c, u,args,  r)))
+
+  where ssh = binary :: DevOp (Binary "ssh")
+        mkOp (_, (rpath, c, u, args, r)) = buildOp
+              ("remote-continued: " <> " @" <> pack (show $ resolvedKey r))
+              ("calls 'turnup' at host " <> pack (show $ resolvedKey r))
+              noCheck
+              (do
+                  Remote ip <- resolver r
+                  blindRun c (sshCmd rpath u ip args) "")
+              noAction
+              noAction
+        sshCmd rpath u ip args  = [ "-o", "StrictHostKeyChecking no"
+                                , "-o", "UserKnownHostsFile /dev/null"
+                                , "-l", unpack (userName u), unpack ip
+                                , remoteExecution rpath args ]
+        remoteExecution rpath args = unwords [ "chmod", "+x", rpath, ";", rpath ++ " " ++ unwords args, ";"]

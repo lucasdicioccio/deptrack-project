@@ -13,7 +13,7 @@ module Devops.Storage.Base (
   , blindRemoveLink
   ) where
 
-import           Control.Exception     (catch, IOException)
+import           Control.Exception     (IOException, catch)
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as ByteString
 import           Data.Monoid           ((<>))
@@ -39,7 +39,7 @@ data RepositoryFile = LocalRepositoryFile !FilePath
 
 -- | Generates the content of a File
 fileContent :: FilePath -> DevOp FileContent -> DevOp (FileContent, FilePresent)
-fileContent path mkContent = devop id mkop $ do 
+fileContent path mkContent = devop id mkop $ do
     !content <- mkContent
     return (content, FilePresent path)
   where

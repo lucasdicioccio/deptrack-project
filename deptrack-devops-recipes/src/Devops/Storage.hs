@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -6,7 +5,7 @@
 
 module Devops.Storage (
     FilePresent (..)
-  , FileContent
+  , FileContent, FileLinked(..)
   , fileCopy , turnupfileBackup , turndownfileBackup , generatedFile , fileContent
   , fileLink
   , RepositoryFile (..) , localRepositoryFile
@@ -18,25 +17,27 @@ module Devops.Storage (
   , fileExist
   , blindRemoveLink
   , checkFilePresent
+  , (</>)
   --
   , binaryPresent
   ) where
 
-import           Control.Exception     (catch, IOException)
-import qualified Data.ByteString       as ByteString
-import           Data.Monoid           ((<>))
-import qualified Data.Text             as Text
-import           Data.Typeable         (Typeable)
-import           System.Directory      (removeDirectory, doesDirectoryExist, createDirectoryIfMissing)
-import           System.FilePath.Posix ((</>), takeDirectory)
-import           System.Posix.Files    (createSymbolicLink, fileExist)
+import           Control.Exception      (IOException, catch)
+import qualified Data.ByteString        as ByteString
+import           Data.Monoid            ((<>))
+import qualified Data.Text              as Text
+import           Data.Typeable          (Typeable)
+import           System.Directory       (createDirectoryIfMissing,
+                                         doesDirectoryExist, removeDirectory)
+import           System.FilePath.Posix  (takeDirectory, (</>))
+import           System.Posix.Files     (createSymbolicLink, fileExist)
 
 import           DepTrack
-import           Devops.Binary
 import           Devops.Base
-import           Devops.Utils
-import           Devops.Storage.Base
+import           Devops.Binary
 import qualified Devops.Debian.Commands as Cmd
+import           Devops.Storage.Base
+import           Devops.Utils
 
 blindRemoveDir :: FilePath -> IO ()
 blindRemoveDir path = removeDirectory path
@@ -121,7 +122,7 @@ turndownfileBackup rpath src = devop fst mkOp $ do
     cp <- Cmd.cp
     sync <- Cmd.sync
     return $ ((LocalRepositoryFile rpath, file), (cp,sync))
-  where 
+  where
     fs sync = blindRun sync [] ""
     mkOp ((_, FilePresent srcPath), (cp,sync)) =
             buildOp ("file-backup: " <> Text.pack rpath)
@@ -177,7 +178,7 @@ generatedFile path mkBinary mkArgs = devop fst mkOp $ do
     cmd <- mkBinary
     sync <- Cmd.sync
     return $ ((cmd, args, FilePresent path),sync)
-  where 
+  where
     fs sync = blindRun sync [] ""
     mkOp ((cmd, args, _),sync) =
              buildOp ("file-generated: " <> Text.pack path)
