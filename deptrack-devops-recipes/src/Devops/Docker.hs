@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor             #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
@@ -170,7 +171,7 @@ runningContainer waitmode standby = devop fst mkOp $ do
 data Dockerized a =
     Dockerized { dockerizedObj       :: !a
                , dockerizedContainer :: !Container
-               }
+               } deriving Functor
 
 insertFile :: DevOp FilePresent
            -> FilePath
