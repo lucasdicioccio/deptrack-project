@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 module Main where
 
 import           Control.Monad             (forM, mapM, void)
@@ -19,7 +20,8 @@ import           Devops.Debian.Base        (deb)
 import           Devops.Debian.Commands    (git)
 import           Devops.Debian.User        (Group (..), User (..),
                                             directoryPermissions, homeDirPath,
-                                            mereUser, preExistingUser)
+                                            mereUser, preExistingUser,
+                                            userDirectory)
 import           Devops.Git                (GitRepo (..), gitClone, gitDir)
 import           Devops.Haskell            (stackPackage)
 import           Devops.Optimize           (optimizeDebianPackages)
@@ -28,9 +30,12 @@ import           Devops.Ref
 import           Devops.Storage            (DirectoryPresent (..), FileContent,
                                             FileLinked, FilePresent (..),
                                             directory, fileContent, fileLink,
-                                            preExistingFile, (</>))
+                                            preExistingFile, subdirectory,
+                                            (</>))
 import           Network.DO                hiding (error)
 import           System.Environment        (getArgs)
+import           System.IO                 (BufferMode (..), hSetBuffering,
+                                            stderr, stdout)
 
 
 -- | Stages of execution of this application
@@ -54,8 +59,10 @@ unparseStage stage m = case stage of
 
 main :: IO ()
 main = do
-    let app = App parseStage unparseStage stages [optimizeDebianPackages] :: App Stage
-    appMain app
+  hSetBuffering stdout NoBuffering
+  hSetBuffering stderr NoBuffering
+  let app = App parseStage unparseStage stages [optimizeDebianPackages] :: App Stage
+  appMain app
 
 stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp ()
 stages Remote _ _         = devtools
@@ -88,7 +95,7 @@ parasitedHost dropletName key = do
 devtools :: DevOp ()
 devtools = void $ do
         packages
-        dotFiles (dotFilesDir devUser)
+        dotFiles devUser (dotFilesDir devUser)
 
 packages :: DevOp ()
 packages = void $ do
@@ -96,25 +103,24 @@ packages = void $ do
     deb "emacs"
     deb "tmux"
     deb "graphviz"
-    deb "stack"
+    deb "haskell-stack"
 
-dotFilesDir :: DevOp User -> DevOp (User, DirectoryPresent)
+dotFilesDir :: DevOp User -> DevOp DirectoryPresent
 dotFilesDir mkUsr = do
   User u <- mkUsr
-  let home = homeDirPath u
-      dotfilesDir = directory $ home </> "dotfiles"
-  d <- directoryPermissions (pure (User u, Group u)) dotfilesDir
-  return (User u, d)
+  let home = (DirectoryPresent . homeDirPath . userName) <$> mkUsr
+      dotfilesDir = userDirectory "dotfiles" mkUsr
+      userAndGroup = (,Group u) <$> mkUsr
+  directoryPermissions userAndGroup dotfilesDir
 
-dotFiles :: DevOp (User, DirectoryPresent) -> DevOp [FilePresent]
-dotFiles mkDirUser = do
-  (u, d) <- mkDirUser
-  let repo = gitClone "https://github.com/abailly/dotfiles" "master" git (pure d)
+dotFiles :: DevOp User -> DevOp DirectoryPresent -> DevOp [FilePresent]
+dotFiles mkUsr dotFiles = do
+  let repo = gitClone "https://github.com/abailly/dotfiles" "master" git dotFiles
   forM [ ".tmux.conf"
        , ".emacs"
        , ".gitconfig"
        , ".bash_profile"
-       ] $ symlinkFile (pure u) repo
+       ] $ symlinkFile mkUsr repo
 
 symlinkFile :: DevOp User -> DevOp GitRepo -> FilePath -> DevOp FilePresent
 symlinkFile mkUser mkRepo filepath = do
