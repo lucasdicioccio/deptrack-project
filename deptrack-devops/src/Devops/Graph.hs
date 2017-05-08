@@ -25,7 +25,7 @@ module Devops.Graph (
   --
   , waitStability
   -- * Synchronous Operations
-  , syncTurnupGraph
+  , syncTurnupGraph, syncTurnDownGraph
   ) where
 
 import           Control.Concurrent          (threadDelay)
@@ -174,6 +174,23 @@ syncTurnupGraph bcast (graph,lookupVertex,_) =
             _       -> print ("turning-up: " <> desc) >> turnup
         print ("turnup-done: " <> desc)
         bcast (oid,Success,Stable,TurnedUp)
+
+-- | Turn-down a graph sequentially
+-- Topologically sort all nodes of the graph then run corresponding operations
+syncTurnDownGraph :: Broadcast -> OpGraph -> IO ()
+syncTurnDownGraph bcast (graph,lookupVertex,_) =
+  mapM_ go (reverse $ Graph.topSort graph)
+  where
+    go :: Graph.Vertex -> IO ()
+    go vertex = do
+        let (preop,oid,_) = lookupVertex vertex
+            desc          = opName . opDescription $ runPreOp preop
+            turndown      = opTurndown $ opFunctions $ runPreOp preop
+        bcast (oid,Unknown,Transient,TurnedDown)
+        print ("turning-down: "<> desc)
+        turndown
+        print ("turndown-done: " <> desc)
+        bcast (oid,Success,Stable,TurnedDown)
 
 -- forks a node that will turnup a given Op once its children
 -- all are green

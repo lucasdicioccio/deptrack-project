@@ -26,18 +26,13 @@ import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.ByteString.Lazy        (ByteString)
 import           Data.Tree                   (Forest)
 import           Data.Typeable               (Typeable)
-import           DepTrack                    (GraphData, buildGraph,
-                                              evalDepForest1)
+import           DepTrack                    (GraphData, buildGraph, evalDepForest1)
 import           Prelude                     hiding (readFile)
 import           System.Environment          (getArgs, getExecutablePath)
 
-import           Devops.Actions              (checkStatuses, concurrentTurndown,
-                                              concurrentTurnup,
-                                              concurrentUpkeep, defaultDotify,
-                                              display, dotifyWithStatuses,
-                                              listUniqNodes, sequentialTurnup)
-import           Devops.Base                 (DevOp, OpUniqueId, PreOp,
-                                              preOpUniqueId)
+import           Devops.Actions              (checkStatuses, concurrentTurndown, concurrentTurnup, concurrentUpkeep, defaultDotify,
+                                              display, dotifyWithStatuses, listUniqNodes, sequentialTurnDown, sequentialTurnup)
+import           Devops.Base                 (DevOp, OpUniqueId, PreOp, preOpUniqueId)
 
 --------------------------------------------------------------------
 
@@ -45,6 +40,7 @@ data Method =
     TurnUp
   | SequentialTurnUp
   | TurnDown
+  | SequentialTurnDown
   | Upkeep
   | Print
   | Dot
@@ -61,14 +57,15 @@ applyMethod transformations originalForest meth = do
   let graph = graphize forest
 
   case meth of
-    TurnUp   -> concurrentTurnup graph
+    TurnUp             -> concurrentTurnup graph
     SequentialTurnUp   -> sequentialTurnup graph
-    TurnDown -> concurrentTurndown graph
-    Upkeep   -> concurrentUpkeep graph
-    Print    -> display forest
-    Dot      -> putStrLn . defaultDotify $ graph
-    CheckDot -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
-    List     -> listUniqNodes forest
+    TurnDown           -> concurrentTurndown graph
+    SequentialTurnDown -> sequentialTurnDown graph
+    Upkeep             -> concurrentUpkeep graph
+    Print              -> display forest
+    Dot                -> putStrLn . defaultDotify $ graph
+    CheckDot           -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
+    List               -> listUniqNodes forest
 
 --------------------------------------------------------------------
 
@@ -90,6 +87,7 @@ simpleMain devop optimizations = go
     go ("up":_)        = call TurnUp
     go ("up-seq":_)    = call SequentialTurnUp
     go ("down":_)      = call TurnDown
+    go ("down-seq":_)  = call SequentialTurnDown
     go ("upkeep":_)    = call Upkeep
     go ("print":_)     = call Print
     go ("dot":_)       = call Dot
@@ -113,14 +111,14 @@ type ForestOptimization = Forest PreOp -> Forest PreOp
 -- recursive structure where the "main entry point" of the recursion is the
 -- binary itself.
 data App arch = App {
-    _parseArgs   :: [String] -> (arch, Method)
+    _parseArgs :: [String] -> (arch, Method)
   -- ^ Parses arguments, returns a parsed architecture and a set of args for
   -- the real defaulMain.
-  , _revParse    :: arch -> Method -> [String]
+  , _revParse  :: arch -> Method -> [String]
   -- ^ Reverse parse arguments, for instance when building a callback.
-  , _target      :: arch -> SelfPath -> (arch -> Method -> [String]) -> DevOp ()
+  , _target    :: arch -> SelfPath -> (arch -> Method -> [String]) -> DevOp ()
   -- ^ Generates a target from the argument and the selfPath
-  , _opts        :: [ForestOptimization]
+  , _opts      :: [ForestOptimization]
   }
 
 -- | DefaultMain for 'App'.
@@ -140,6 +138,7 @@ appMethod :: String -> Method
 appMethod "up"        = TurnUp
 appMethod "up-seq"    = SequentialTurnUp
 appMethod "down"      = TurnDown
+appMethod "down-seq"  = SequentialTurnDown
 appMethod "upkeep"    = Upkeep
 appMethod "print"     = Print
 appMethod "dot"       = Dot
@@ -150,14 +149,15 @@ appMethod str         = error $ "unparsed appMethod: " ++ str
 -- | Serializes a 'Method' to what should be a command-line argument later
 -- parsed via 'appMethod'.
 methodArg :: Method -> String
-methodArg TurnUp           = "up"
-methodArg SequentialTurnUp = "up-seq"
-methodArg TurnDown         = "down"
-methodArg Upkeep           = "upkeep"
-methodArg Print            = "print"
-methodArg Dot              = "dot"
-methodArg CheckDot         = "check-dot"
-methodArg List             = "list"
+methodArg TurnUp             = "up"
+methodArg SequentialTurnUp   = "up-seq"
+methodArg TurnDown           = "down"
+methodArg SequentialTurnDown = "down-seq"
+methodArg Upkeep             = "upkeep"
+methodArg Print              = "print"
+methodArg Dot                = "dot"
+methodArg CheckDot           = "check-dot"
+methodArg List               = "list"
 
 --------------------------------------------------------------------
 

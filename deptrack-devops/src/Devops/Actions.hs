@@ -2,7 +2,7 @@
 
 module Devops.Actions (
     concurrentTurnup , concurrentTurndown , concurrentUpkeep , checkStatuses
-    , sequentialTurnup
+    , sequentialTurnup, sequentialTurnDown
     , display , defaultDotify , dotifyWithStatuses
     , listUniqNodes
     ) where
@@ -69,6 +69,9 @@ checkStatuses graph = do
 
 sequentialTurnup ::  OpGraph -> IO ()
 sequentialTurnup = syncTurnupGraph noBroadcast
+
+sequentialTurnDown ::  OpGraph -> IO ()
+sequentialTurnDown = syncTurnDownGraph noBroadcast
 
 -- | Display a forest of operations.
 display :: [Tree PreOp] -> IO ()
