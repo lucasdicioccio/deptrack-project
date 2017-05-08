@@ -18,44 +18,45 @@ module Devops.Graph (
   --
   , Broadcast
   , noBroadcast
-  --
+  -- * Asynchronous Operations
   , snapshot , makeStatusesMap
   , asyncTurnupGraph , asyncTurndownGraph , checkWholeGraph , upkeepGraph
   , defaultUpKeepFSM , defaultDownKeepFSM
   --
   , waitStability
+  -- * Synchronous Operations
+  , syncTurnupGraph
   ) where
 
-import           Control.Concurrent           (threadDelay)
-import           Control.Concurrent.Async     (Async, async, mapConcurrently)
-import           Control.Concurrent.STM       (STM, atomically, retry)
-import           Control.Concurrent.STM.TVar  (TVar, modifyTVar', newTVar,
-                                               readTVar, readTVarIO, writeTVar)
-import           Control.Lens                 (set, view)
-import           Control.Lens.TH              (makeLenses)
-import           Control.Monad                (void)
-import qualified Data.Array                   as Array
-import qualified Data.Graph                   as Graph
-import           Data.Map.Strict              (Map)
-import qualified Data.Map.Strict              as Map
-import           Data.Maybe                   (fromMaybe)
-import           Data.Monoid                  ((<>))
-import qualified Data.Text                    as Text
+import           Control.Concurrent          (threadDelay)
+import           Control.Concurrent.Async    (Async, async, mapConcurrently)
+import           Control.Concurrent.STM      (STM, atomically, retry)
+import           Control.Concurrent.STM.TVar (TVar, modifyTVar', newTVar,
+                                              readTVar, readTVarIO, writeTVar)
+import           Control.Lens                (set, view)
+import           Control.Lens.TH             (makeLenses)
+import           Control.Monad               (mapM_, void)
+import qualified Data.Array                  as Array
+import qualified Data.Graph                  as Graph
+import           Data.Map.Strict             (Map)
+import qualified Data.Map.Strict             as Map
+import           Data.Maybe                  (fromMaybe)
+import           Data.Monoid                 ((<>))
+import qualified Data.Text                   as Text
 import           GHC.Generics
 
-import           DepTrack                     (GraphData)
+import           DepTrack                    (GraphData)
 import           Devops.Base                 (CheckResult (..), Op (..),
-                                               OpDescription (..),
-                                               OpFunctions (..), OpUniqueId,
-                                               PreOp, preOpUniqueId,
-                                               runPreOp)
+                                              OpDescription (..),
+                                              OpFunctions (..), OpUniqueId,
+                                              PreOp, preOpUniqueId, runPreOp)
 
 -- | The intended direction of an operation.
 data WantedDirection = TurnedUp | TurnedDown
   deriving (Show,Eq,Ord,Generic)
 
 -- | NIH Stream representing an infinite non-empty lists.
--- TODO: 
+-- TODO:
 -- * carry some logical version/timestamp
 -- * take some generally-accepted Stream implementation.
 data Stream a = Cons a (Stream a)
@@ -82,6 +83,9 @@ data OpStatus =
              , _opStability   :: !Stability
              } deriving Show
 makeLenses ''OpStatus
+
+-- | A simple handler to be used when turning-up/down a graph sequentially
+type SyncOpHandler a = PreOp -> IO a
 
 type AsyncOpHandler a = PreOp
                 -- ^ the operation
@@ -147,6 +151,29 @@ waitStability dir stab statusTVars = do
 type Broadcast = (OpUniqueId,CheckResult,Stability,WantedDirection) -> IO ()
 noBroadcast :: Broadcast
 noBroadcast = const (return ())
+
+-- | Turn-up a graph sequentially
+-- Topologically sort all nodes of the graph then run corresponding operations
+syncTurnupGraph :: Broadcast -> OpGraph -> IO ()
+syncTurnupGraph bcast (graph,lookupVertex,_) =
+  mapM_ go (reverse $ Graph.topSort graph)
+  where
+    go :: Graph.Vertex -> IO ()
+    go vertex = do
+        let (preop,oid,_) = lookupVertex vertex
+            desc          = opName . opDescription $ runPreOp preop
+            funs          = opFunctions $ runPreOp preop
+            turnup        = opTurnup funs
+            reload        = opReload funs
+            check         = opCheck  funs
+        bcast (oid,Unknown,Transient,TurnedUp)
+        print ("pre-checking: " <> desc)
+        currentStatus <- check
+        case currentStatus of
+            Success -> print ("reloading: " <> desc) >> reload
+            _       -> print ("turning-up: " <> desc) >> turnup
+        print ("turnup-done: " <> desc)
+        bcast (oid,Success,Stable,TurnedUp)
 
 -- forks a node that will turnup a given Op once its children
 -- all are green

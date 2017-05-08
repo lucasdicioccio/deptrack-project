@@ -59,8 +59,8 @@ unparseStage stage m = case stage of
 
 main :: IO ()
 main = do
-  hSetBuffering stdout NoBuffering
-  hSetBuffering stderr NoBuffering
+  hSetBuffering stdout LineBuffering
+  hSetBuffering stderr LineBuffering
   let app = App parseStage unparseStage stages [optimizeDebianPackages] :: App Stage
   appMain app
 

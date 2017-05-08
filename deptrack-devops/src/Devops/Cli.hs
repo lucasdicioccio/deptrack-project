@@ -31,16 +31,19 @@ import           DepTrack                    (GraphData, buildGraph,
 import           Prelude                     hiding (readFile)
 import           System.Environment          (getArgs, getExecutablePath)
 
-import           Devops.Actions              (concurrentTurndown,
-                                              concurrentTurnup, concurrentUpkeep, display, defaultDotify,
-                                              dotifyWithStatuses,
-                                              listUniqNodes, checkStatuses)
-import           Devops.Base                 (DevOp, OpUniqueId, PreOp, preOpUniqueId)
+import           Devops.Actions              (checkStatuses, concurrentTurndown,
+                                              concurrentTurnup,
+                                              concurrentUpkeep, defaultDotify,
+                                              display, dotifyWithStatuses,
+                                              listUniqNodes, sequentialTurnup)
+import           Devops.Base                 (DevOp, OpUniqueId, PreOp,
+                                              preOpUniqueId)
 
 --------------------------------------------------------------------
 
 data Method =
     TurnUp
+  | SequentialTurnUp
   | TurnDown
   | Upkeep
   | Print
@@ -59,6 +62,7 @@ applyMethod transformations originalForest meth = do
 
   case meth of
     TurnUp   -> concurrentTurnup graph
+    SequentialTurnUp   -> sequentialTurnup graph
     TurnDown -> concurrentTurndown graph
     Upkeep   -> concurrentUpkeep graph
     Print    -> display forest
@@ -84,13 +88,14 @@ simpleMain devop optimizations = go
     forest = getDependenciesOnly devop
     call m = applyMethod optimizations forest m
     go ("up":_)        = call TurnUp
+    go ("up-seq":_)    = call SequentialTurnUp
     go ("down":_)      = call TurnDown
     go ("upkeep":_)    = call Upkeep
     go ("print":_)     = call Print
     go ("dot":_)       = call Dot
     go ("check-dot":_) = call CheckDot
     go ("list":_)      = call List
-    go _ = putStrLn usage
+    go _               = putStrLn usage
     usage = unlines [ "deptrack-devops default main:"
                     , "  Available arguments:"
                     , "    up, down, upkeep, print, dot, check-dot, list"
@@ -133,6 +138,7 @@ appMain App{..} = do
 -- conjunction with 'methodArg' for the reverse parse and you will be fine).
 appMethod :: String -> Method
 appMethod "up"        = TurnUp
+appMethod "up-seq"    = SequentialTurnUp
 appMethod "down"      = TurnDown
 appMethod "upkeep"    = Upkeep
 appMethod "print"     = Print
@@ -144,13 +150,14 @@ appMethod str         = error $ "unparsed appMethod: " ++ str
 -- | Serializes a 'Method' to what should be a command-line argument later
 -- parsed via 'appMethod'.
 methodArg :: Method -> String
-methodArg TurnUp   = "up"
-methodArg TurnDown = "down"
-methodArg Upkeep   = "upkeep"
-methodArg Print    = "print"
-methodArg Dot      = "dot"
-methodArg CheckDot = "check-dot"
-methodArg List     = "list"
+methodArg TurnUp           = "up"
+methodArg SequentialTurnUp = "up-seq"
+methodArg TurnDown         = "down"
+methodArg Upkeep           = "upkeep"
+methodArg Print            = "print"
+methodArg Dot              = "dot"
+methodArg CheckDot         = "check-dot"
+methodArg List             = "list"
 
 --------------------------------------------------------------------
 
