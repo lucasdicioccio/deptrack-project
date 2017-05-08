@@ -83,7 +83,7 @@ data OpStatus =
              } deriving Show
 makeLenses ''OpStatus
 
-type OpHandler a = PreOp
+type AsyncOpHandler a = PreOp
                 -- ^ the operation
                 -> TVar OpStatus
                 -- ^ the operation status
@@ -114,12 +114,12 @@ traverseOpGraph ::
      OpStatusesMap
   -> Intents
   -> OpGraph
-  -> OpHandler a
+  -> AsyncOpHandler a
   -> IO [a]
 traverseOpGraph statusMap intents (g,lookupVertex,_) handler = do
     mapConcurrently (traverseOne handler) (Graph.vertices g)
   where
-    traverseOne :: OpHandler a -> Graph.Vertex -> IO a
+    traverseOne :: AsyncOpHandler a -> Graph.Vertex -> IO a
     traverseOne go vertex = do
         let (preop,oid,_) = lookupVertex vertex
         let childrenOids = fmap (\(_,x,_) -> x) $ fmap lookupVertex (g Array.! vertex)
@@ -159,7 +159,7 @@ asyncTurnupGraph :: Broadcast
 asyncTurnupGraph bcast statusMap intents graph = do
     void $ traverseOpGraph statusMap intents graph go
   where
-    go :: OpHandler ()
+    go :: AsyncOpHandler ()
     go preop tvar childrenTVars _ _ = do
         let oid = preOpUniqueId preop
         let desc = opName . opDescription $ runPreOp preop
@@ -188,7 +188,7 @@ asyncTurndownGraph bcast statusMap intents graph = do
     void $ traverseOpGraph statusMap intents graph go
   where
     -- wait for children to be OK and continue
-    go :: OpHandler ()
+    go :: AsyncOpHandler ()
     go preop tvar childrenTVars _ _ = do
         let oid = preOpUniqueId preop
         let desc = opName . opDescription $ runPreOp preop
@@ -214,7 +214,7 @@ checkWholeGraph :: Broadcast
 checkWholeGraph bcast statusMap intents graph = do
     traverseOpGraph statusMap intents graph go'
   where
-    go' :: OpHandler (Async (OpUniqueId, CheckResult, Stability, WantedDirection))
+    go' :: AsyncOpHandler (Async (OpUniqueId, CheckResult, Stability, WantedDirection))
     go' preop tvar _ _ _ = go (runPreOp preop) tvar
 
     go :: Op -> (TVar OpStatus) -> IO (Async (OpUniqueId, CheckResult, Stability, WantedDirection))
