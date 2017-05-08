@@ -196,7 +196,7 @@ remoteContinued usr cont host =
               c <- ssh
               let obj = eval cont
                   (BinaryCall _ fArgs) = callback cont
-                  args = fArgs TurnUp
+                  args = fArgs SequentialTurnUp
               (ParasitedHost rpath _ r) <- host
               return (Remoted r obj,(rpath, c, u,args,  r)))
 
