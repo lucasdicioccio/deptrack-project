@@ -68,7 +68,7 @@ checkStatuses graph = do
 -- * Sequential Operations
 
 sequentialTurnup ::  OpGraph -> IO ()
-sequentialTurnup = syncTurnupGraph noBroadcast
+sequentialTurnup (g,f1,f2) = syncTurnupGraph noBroadcast (transposeG g, f1, f2)
 
 sequentialTurnDown ::  OpGraph -> IO ()
 sequentialTurnDown = syncTurnDownGraph noBroadcast

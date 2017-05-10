@@ -155,11 +155,11 @@ noBroadcast = const (return ())
 
 -- | Turn-up a graph sequentially
 --
--- Topologically sorts a transposition of the graph then invokes `TurnUp` action synchronously
+-- Topologically sorts the graph then invokes `TurnUp` action synchronously
 -- through each node. Note the order of execution is deterministic.
 syncTurnupGraph :: Broadcast -> OpGraph -> IO ()
 syncTurnupGraph bcast (graph,lookupVertex,_) =
-    mapM_ go (Graph.topSort $ Graph.transposeG graph)
+    mapM_ go (Graph.topSort graph)
     where
       go :: Graph.Vertex -> IO ()
       go vertex = do
@@ -180,11 +180,11 @@ syncTurnupGraph bcast (graph,lookupVertex,_) =
 
 -- | Turn-down a graph sequentially
 --
--- Topologically sorts a transposition of the graph then invokes `TurnDown` action synchronously
+-- Topologically sorts the graph then invokes `TurnDown` action synchronously
 -- through each node. Note the order of execution is deterministic.
 syncTurnDownGraph :: Broadcast -> OpGraph -> IO ()
 syncTurnDownGraph bcast (graph,lookupVertex,_) =
-    mapM_ go (Graph.topSort $ Graph.transposeG graph)
+    mapM_ go (Graph.topSort graph)
     where
       go :: Graph.Vertex -> IO ()
       go vertex = do
