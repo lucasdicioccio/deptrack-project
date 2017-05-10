@@ -225,7 +225,7 @@ dockerized :: Name
 dockerized name mkImage cont beforeStart = declare op $ do
     let obj = eval cont
     let (BinaryCall selfPath fArgs) = callback cont
-    let args = fArgs TurnUp
+    let args = fArgs (TurnUp Concurrently)
     let selfBin = preExistingFile selfPath
     let mkCmd = ImportedContainerCommand <$> selfBin <*> pure args
     let standby = standbyContainer name mkImage mkCmd
