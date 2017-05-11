@@ -2,7 +2,7 @@
 -- | Building-block methods to build a command-line tool able to inspect and
 -- turnup/turndown DevOps.
 module Devops.Cli (
-    Method (..)
+    Method (..), Concurrency (..)
   , applyMethod
   -- * Building main programs
   , simpleMain
@@ -26,27 +26,26 @@ import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.ByteString.Lazy        (ByteString)
 import           Data.Tree                   (Forest)
 import           Data.Typeable               (Typeable)
-import           DepTrack                    (GraphData, buildGraph,
-                                              evalDepForest1)
+import           DepTrack                    (GraphData, buildGraph, evalDepForest1)
 import           Prelude                     hiding (readFile)
 import           System.Environment          (getArgs, getExecutablePath)
 
-import           Devops.Actions              (concurrentTurndown,
-                                              concurrentTurnup, concurrentUpkeep, display, defaultDotify,
-                                              dotifyWithStatuses,
-                                              listUniqNodes, checkStatuses)
+import           Devops.Actions              (checkStatuses, concurrentTurndown, concurrentTurnup, concurrentUpkeep, defaultDotify,
+                                              display, dotifyWithStatuses, listUniqNodes, sequentialTurnDown, sequentialTurnup)
 import           Devops.Base                 (DevOp, OpUniqueId, PreOp, preOpUniqueId)
 
 --------------------------------------------------------------------
 
 data Method =
-    TurnUp
-  | TurnDown
+    TurnUp Concurrency
+  | TurnDown Concurrency
   | Upkeep
   | Print
   | Dot
   | CheckDot
   | List
+
+data Concurrency = Concurrently | Sequentially
 
 --------------------------------------------------------------------
 applyMethod :: [(Forest PreOp -> Forest PreOp)]
@@ -58,13 +57,15 @@ applyMethod transformations originalForest meth = do
   let graph = graphize forest
 
   case meth of
-    TurnUp   -> concurrentTurnup graph
-    TurnDown -> concurrentTurndown graph
-    Upkeep   -> concurrentUpkeep graph
-    Print    -> display forest
-    Dot      -> putStrLn . defaultDotify $ graph
-    CheckDot -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
-    List     -> listUniqNodes forest
+    TurnUp Concurrently   -> concurrentTurnup graph
+    TurnUp Sequentially   -> sequentialTurnup graph
+    TurnDown Concurrently -> concurrentTurndown graph
+    TurnDown Sequentially -> sequentialTurnDown graph
+    Upkeep                -> concurrentUpkeep graph
+    Print                 -> display forest
+    Dot                   -> putStrLn . defaultDotify $ graph
+    CheckDot              -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
+    List                  -> listUniqNodes forest
 
 --------------------------------------------------------------------
 
@@ -83,14 +84,16 @@ simpleMain devop optimizations = go
   where
     forest = getDependenciesOnly devop
     call m = applyMethod optimizations forest m
-    go ("up":_)        = call TurnUp
-    go ("down":_)      = call TurnDown
+    go ("up":_)        = call $ TurnUp Concurrently
+    go ("up-seq":_)    = call $ TurnUp Sequentially
+    go ("down":_)      = call $ TurnDown Concurrently
+    go ("down-seq":_)  = call $ TurnDown Sequentially
     go ("upkeep":_)    = call Upkeep
     go ("print":_)     = call Print
     go ("dot":_)       = call Dot
     go ("check-dot":_) = call CheckDot
     go ("list":_)      = call List
-    go _ = putStrLn usage
+    go _               = putStrLn usage
     usage = unlines [ "deptrack-devops default main:"
                     , "  Available arguments:"
                     , "    up, down, upkeep, print, dot, check-dot, list"
@@ -108,14 +111,14 @@ type ForestOptimization = Forest PreOp -> Forest PreOp
 -- recursive structure where the "main entry point" of the recursion is the
 -- binary itself.
 data App arch = App {
-    _parseArgs   :: [String] -> (arch, Method)
+    _parseArgs :: [String] -> (arch, Method)
   -- ^ Parses arguments, returns a parsed architecture and a set of args for
   -- the real defaulMain.
-  , _revParse    :: arch -> Method -> [String]
+  , _revParse  :: arch -> Method -> [String]
   -- ^ Reverse parse arguments, for instance when building a callback.
-  , _target      :: arch -> SelfPath -> (arch -> Method -> [String]) -> DevOp ()
+  , _target    :: arch -> SelfPath -> (arch -> Method -> [String]) -> DevOp ()
   -- ^ Generates a target from the argument and the selfPath
-  , _opts        :: [ForestOptimization]
+  , _opts      :: [ForestOptimization]
   }
 
 -- | DefaultMain for 'App'.
@@ -132,8 +135,10 @@ appMain App{..} = do
 -- (NB. unsafe means this function is partial, you should use this function in
 -- conjunction with 'methodArg' for the reverse parse and you will be fine).
 appMethod :: String -> Method
-appMethod "up"        = TurnUp
-appMethod "down"      = TurnDown
+appMethod "up"        = TurnUp Concurrently
+appMethod "up-seq"    = TurnUp Sequentially
+appMethod "down"      = TurnDown Concurrently
+appMethod "down-seq"  = TurnDown Sequentially
 appMethod "upkeep"    = Upkeep
 appMethod "print"     = Print
 appMethod "dot"       = Dot
@@ -144,13 +149,15 @@ appMethod str         = error $ "unparsed appMethod: " ++ str
 -- | Serializes a 'Method' to what should be a command-line argument later
 -- parsed via 'appMethod'.
 methodArg :: Method -> String
-methodArg TurnUp   = "up"
-methodArg TurnDown = "down"
-methodArg Upkeep   = "upkeep"
-methodArg Print    = "print"
-methodArg Dot      = "dot"
-methodArg CheckDot = "check-dot"
-methodArg List     = "list"
+methodArg (TurnUp Concurrently)   = "up"
+methodArg (TurnUp Sequentially)   = "up-seq"
+methodArg (TurnDown Concurrently) = "down"
+methodArg (TurnDown Sequentially) = "down-seq"
+methodArg Upkeep                  = "upkeep"
+methodArg Print                   = "print"
+methodArg Dot                     = "dot"
+methodArg CheckDot                = "check-dot"
+methodArg List                    = "list"
 
 --------------------------------------------------------------------
 

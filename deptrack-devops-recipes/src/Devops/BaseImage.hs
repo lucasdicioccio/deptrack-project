@@ -53,6 +53,6 @@ bootstrap imgpath bootstrapdir cfg mounts cb = devop fst mkOp $ do
     mkOp (_,(chroot,mntPath)) = buildOp
         ("bootstrap-configured") ("finalizes configuration")
         noCheck
-        (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs TurnUp) "")
+        (blindRun chroot ([mntPath, binPath cfg] <> selfBootstrapArgs (TurnUp Concurrently)) "")
         noAction
         noAction

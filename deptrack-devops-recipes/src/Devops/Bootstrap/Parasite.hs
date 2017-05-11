@@ -117,6 +117,7 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- | Remotely execute a `Closure` on some parasited host
 -- adapted from `Devops.Parasite`
 -- TODO unify the different ways of talking to a remote host
+-- DEPRECATED
 remoted :: Typeable a
         => (Closure (DevOp a) -> BinaryCall)
         -> DevOp User
@@ -126,7 +127,7 @@ remoted :: Typeable a
 remoted mkCb usr clo host = devop fst mkOp $ do
     let remoteObj = runDevOp $ unclosure clo
     let (BinaryCall selfPath fArgs) = mkCb clo
-    let args = fArgs TurnUp
+    let args = fArgs (TurnUp Sequentially)
     u <- usr
     c <- ssh
     (ParasitedHost _ _ r) <- host
@@ -159,28 +160,58 @@ remoted mkCb usr clo host = devop fst mkOp $ do
 -- on the closure's content.
 remotedWith :: (Typeable b, Typeable a, Static (Serializable a))
                => DevOp (IO a) -> DevOp User -> Closure (a -> DevOp b) -> DevOp ParasitedHost -> DevOp (Remoted ())
-remotedWith mkAction usr clo host =
-  devop fst mkOp (do
-              u <- usr
-              c <- ssh
-              act <- mkAction
-              (ParasitedHost rpath _ r) <- host
-              return (Remoted r (),(rpath, c, clo, u, r, act)))
-
-  where ssh = binary :: DevOp (Binary "ssh")
-        mkOp (_, (rpath, c, clos, u, r, act)) = buildOp
-              ("remote-deferred-closure: " <> " @" <> pack (show $ resolvedKey r))
-              ("calls 'turnup --b64=XXX' at host " <> pack (show $ resolvedKey r))
-              noCheck
-              (do
+remotedWith mkAction usr clo host = devop fst mkOp $ do
+    u <- usr
+    c <- ssh
+    act <- mkAction
+    (ParasitedHost rpath _ r) <- host
+    return (Remoted r (),(rpath, c, clo, u, r, act))
+  where
+      ssh = binary :: DevOp (Binary "ssh")
+      mkOp (_, (rpath, c, clos, u, r, act)) = buildOp
+          ("remote-deferred-closure: " <> " @" <> pack (show $ resolvedKey r))
+          ("calls 'turnup --b64=XXX' at host " <> pack (show $ resolvedKey r))
+          noCheck
+          (do
                   Remote ip <- resolver r
                   arg <- act
                   let fp = convertString $ B64.encode $ Binary.encode $ clos `cap` cpure closureDict arg
                   blindRun c (sshCmd rpath u ip fp) "")
-              noAction
-              noAction
-        sshCmd rpath u ip b64 = [ "-o", "StrictHostKeyChecking no"
+          noAction
+          noAction
+      sshCmd rpath u ip b64 = [ "-o", "StrictHostKeyChecking no"
+                              , "-o", "UserKnownHostsFile /dev/null"
+                              , "-l", unpack (userName u), unpack ip
+                              , remoteExecution rpath b64 ]
+      remoteExecution rpath b64 = unwords [ "chmod", "+x", rpath, ";", rpath, magicRemoteArgv, unpack b64 , ";"]
+
+
+-- | Remotely callback some `Continued a` on some parasited host.
+--
+-- Note the remote continuation is run `Sequentially`
+remoteContinued :: (Typeable a)
+               => DevOp User -> Continued a -> DevOp ParasitedHost -> DevOp (Remoted a)
+remoteContinued usr cont host =  devop fst mkOp $ do
+    u <- usr
+    c <- ssh
+    let obj = eval cont
+        (BinaryCall _ fArgs) = callback cont
+        args = fArgs (TurnUp Sequentially)
+    (ParasitedHost rpath _ r) <- host
+    return (Remoted r obj,(rpath, c, u,args,  r))
+  where
+      ssh = binary :: DevOp (Binary "ssh")
+      mkOp (_, (rpath, c, u, args, r)) = buildOp
+          ("remote-continued: " <> " @" <> pack (show $ resolvedKey r))
+          ("calls 'turnup' at host " <> pack (show $ resolvedKey r))
+          noCheck
+          (do
+              Remote ip <- resolver r
+              blindRun c (sshCmd rpath u ip args) "")
+          noAction
+          noAction
+      sshCmd rpath u ip args  = [ "-o", "StrictHostKeyChecking no"
                                 , "-o", "UserKnownHostsFile /dev/null"
                                 , "-l", unpack (userName u), unpack ip
-                                , remoteExecution rpath b64 ]
-        remoteExecution rpath b64 = unwords [ "chmod", "+x", rpath, ";", rpath, magicRemoteArgv, unpack b64 , ";"]
+                                , remoteExecution rpath args ]
+      remoteExecution rpath args = unwords [ "chmod", "+x", rpath, ";", rpath ++ " " ++ unwords args, ";"]

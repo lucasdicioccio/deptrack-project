@@ -76,7 +76,7 @@ remoted cont host = devop fst mkOp $ do
     c <- ssh
     let obj = eval cont
     let (BinaryCall _ fArgs) = callback cont
-    let args = fArgs TurnUp
+    let args = fArgs (TurnUp Concurrently)
     (ParasitedHost rpath login ip) <- host
     return ((Remoted (Remote ip) obj), (rpath, login, c, args, ip))
   where

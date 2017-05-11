@@ -230,3 +230,18 @@ is as follows:
 This graph is rather simple but presents a shortcoming (which should be removed in future incarnations of DepTrack): The dependency graph of DevOp nodes executed remotely on droplets is not shown.
 
 It has two symetric subgraphs, one for each slave that shall be deployed, with nodes representing the creation of the droplets, the copy of the locally built executable remotely and the remote execution. The slaves depend on the master configuration and the built executable, something which is done only once for all nodes: The same executable will be deployed on all the droplets. To handle processing remote configuration of the droplets we use a technique similar to what's done for *docker-based* configurations (see above): A [Static pointer](https://downloads.haskell.org/~ghc/7.10.1/docs/html/users_guide/static-pointers.html) (see also [Mathieu Boespflug](https://ocharles.org.uk/blog/guest-posts/2014-12-23-static-pointers.html) post) for the node to be triggered is encoded as a base64 binary and passed as an argument to the executable when run remotely. We add an additional twist by passing a dynamic argument (the IP addresses) to the closure. 
+
+
+# deptrack-devops-example-devbox
+
+This example deploys a haskell development box on digital ocean, using some [dotfiles](https://github.com/abailly/dotfiles) to configure the environment. Like the previous one it requires one to have docker installed and access to a DigitalOcean account set up.
+
+The graph is split in 2: One graph for local execution and one for remote execution.
+
+The local graph is:
+
+![graph of deptrack-devops-example-devbox local dependencies](deptrack-devops-example-devbox.png)
+
+The remote graph (with transitive dependencies removed) is:
+
+![graph of deptrack-devops-example-devbox remote dependencies](deptrack-devops-example-devbox-remote.png)

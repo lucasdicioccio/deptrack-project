@@ -18,44 +18,45 @@ module Devops.Graph (
   --
   , Broadcast
   , noBroadcast
-  --
+  -- * Asynchronous Operations
   , snapshot , makeStatusesMap
   , asyncTurnupGraph , asyncTurndownGraph , checkWholeGraph , upkeepGraph
   , defaultUpKeepFSM , defaultDownKeepFSM
   --
   , waitStability
+  -- * Synchronous Operations
+  , syncTurnupGraph, syncTurnDownGraph
   ) where
 
-import           Control.Concurrent           (threadDelay)
-import           Control.Concurrent.Async     (Async, async, mapConcurrently)
-import           Control.Concurrent.STM       (STM, atomically, retry)
-import           Control.Concurrent.STM.TVar  (TVar, modifyTVar', newTVar,
-                                               readTVar, readTVarIO, writeTVar)
-import           Control.Lens                 (set, view)
-import           Control.Lens.TH              (makeLenses)
-import           Control.Monad                (void)
-import qualified Data.Array                   as Array
-import qualified Data.Graph                   as Graph
-import           Data.Map.Strict              (Map)
-import qualified Data.Map.Strict              as Map
-import           Data.Maybe                   (fromMaybe)
-import           Data.Monoid                  ((<>))
-import qualified Data.Text                    as Text
+import           Control.Concurrent          (threadDelay)
+import           Control.Concurrent.Async    (Async, async, mapConcurrently)
+import           Control.Concurrent.STM      (STM, atomically, retry)
+import           Control.Concurrent.STM.TVar (TVar, modifyTVar', newTVar,
+                                              readTVar, readTVarIO, writeTVar)
+import           Control.Lens                (set, view)
+import           Control.Lens.TH             (makeLenses)
+import           Control.Monad               (mapM_, void)
+import qualified Data.Array                  as Array
+import qualified Data.Graph                  as Graph
+import           Data.Map.Strict             (Map)
+import qualified Data.Map.Strict             as Map
+import           Data.Maybe                  (fromMaybe)
+import           Data.Monoid                 ((<>))
+import qualified Data.Text                   as Text
 import           GHC.Generics
 
-import           DepTrack                     (GraphData)
+import           DepTrack                    (GraphData)
 import           Devops.Base                 (CheckResult (..), Op (..),
-                                               OpDescription (..),
-                                               OpFunctions (..), OpUniqueId,
-                                               PreOp, preOpUniqueId,
-                                               runPreOp)
+                                              OpDescription (..),
+                                              OpFunctions (..), OpUniqueId,
+                                              PreOp, preOpUniqueId, runPreOp)
 
 -- | The intended direction of an operation.
 data WantedDirection = TurnedUp | TurnedDown
   deriving (Show,Eq,Ord,Generic)
 
 -- | NIH Stream representing an infinite non-empty lists.
--- TODO: 
+-- TODO:
 -- * carry some logical version/timestamp
 -- * take some generally-accepted Stream implementation.
 data Stream a = Cons a (Stream a)
@@ -83,7 +84,11 @@ data OpStatus =
              } deriving Show
 makeLenses ''OpStatus
 
-type OpHandler a = PreOp
+-- | A simple handler to be used when turning-up/down a graph sequentially
+type SyncOpHandler a = PreOp -> IO a
+
+-- | A `PreOp` handler when turning up/down a graph concurrently
+type AsyncOpHandler a = PreOp
                 -- ^ the operation
                 -> TVar OpStatus
                 -- ^ the operation status
@@ -114,12 +119,12 @@ traverseOpGraph ::
      OpStatusesMap
   -> Intents
   -> OpGraph
-  -> OpHandler a
+  -> AsyncOpHandler a
   -> IO [a]
 traverseOpGraph statusMap intents (g,lookupVertex,_) handler = do
     mapConcurrently (traverseOne handler) (Graph.vertices g)
   where
-    traverseOne :: OpHandler a -> Graph.Vertex -> IO a
+    traverseOne :: AsyncOpHandler a -> Graph.Vertex -> IO a
     traverseOne go vertex = do
         let (preop,oid,_) = lookupVertex vertex
         let childrenOids = fmap (\(_,x,_) -> x) $ fmap lookupVertex (g Array.! vertex)
@@ -148,6 +153,50 @@ type Broadcast = (OpUniqueId,CheckResult,Stability,WantedDirection) -> IO ()
 noBroadcast :: Broadcast
 noBroadcast = const (return ())
 
+-- | Turn-up a graph sequentially
+--
+-- Topologically sorts the graph then invokes `TurnUp` action synchronously
+-- through each node. Note the order of execution is deterministic.
+syncTurnupGraph :: Broadcast -> OpGraph -> IO ()
+syncTurnupGraph bcast (graph,lookupVertex,_) =
+    mapM_ go (Graph.topSort graph)
+    where
+      go :: Graph.Vertex -> IO ()
+      go vertex = do
+          let (preop,oid,_) = lookupVertex vertex
+              desc          = opName . opDescription $ runPreOp preop
+              funs          = opFunctions $ runPreOp preop
+              turnup        = opTurnup funs
+              reload        = opReload funs
+              check         = opCheck  funs
+          bcast (oid,Unknown,Transient,TurnedUp)
+          print ("pre-checking: " <> desc)
+          currentStatus <- check
+          case currentStatus of
+              Success -> print ("reloading: " <> desc) >> reload
+              _       -> print ("turning-up: " <> desc) >> turnup
+          print ("turnup-done: " <> desc)
+          bcast (oid,Success,Stable,TurnedUp)
+
+-- | Turn-down a graph sequentially
+--
+-- Topologically sorts the graph then invokes `TurnDown` action synchronously
+-- through each node. Note the order of execution is deterministic.
+syncTurnDownGraph :: Broadcast -> OpGraph -> IO ()
+syncTurnDownGraph bcast (graph,lookupVertex,_) =
+    mapM_ go (Graph.topSort graph)
+    where
+      go :: Graph.Vertex -> IO ()
+      go vertex = do
+          let (preop,oid,_) = lookupVertex vertex
+              desc          = opName . opDescription $ runPreOp preop
+              turndown      = opTurndown $ opFunctions $ runPreOp preop
+          bcast (oid,Unknown,Transient,TurnedDown)
+          print ("turning-down: "<> desc)
+          turndown
+          print ("turndown-done: " <> desc)
+          bcast (oid,Success,Stable,TurnedDown)
+
 -- forks a node that will turnup a given Op once its children
 -- all are green
 -- dies early if the graph changes and removes the vertex from OpGraphStatuses
@@ -159,7 +208,7 @@ asyncTurnupGraph :: Broadcast
 asyncTurnupGraph bcast statusMap intents graph = do
     void $ traverseOpGraph statusMap intents graph go
   where
-    go :: OpHandler ()
+    go :: AsyncOpHandler ()
     go preop tvar childrenTVars _ _ = do
         let oid = preOpUniqueId preop
         let desc = opName . opDescription $ runPreOp preop
@@ -188,7 +237,7 @@ asyncTurndownGraph bcast statusMap intents graph = do
     void $ traverseOpGraph statusMap intents graph go
   where
     -- wait for children to be OK and continue
-    go :: OpHandler ()
+    go :: AsyncOpHandler ()
     go preop tvar childrenTVars _ _ = do
         let oid = preOpUniqueId preop
         let desc = opName . opDescription $ runPreOp preop
@@ -214,7 +263,7 @@ checkWholeGraph :: Broadcast
 checkWholeGraph bcast statusMap intents graph = do
     traverseOpGraph statusMap intents graph go'
   where
-    go' :: OpHandler (Async (OpUniqueId, CheckResult, Stability, WantedDirection))
+    go' :: AsyncOpHandler (Async (OpUniqueId, CheckResult, Stability, WantedDirection))
     go' preop tvar _ _ _ = go (runPreOp preop) tvar
 
     go :: Op -> (TVar OpStatus) -> IO (Async (OpUniqueId, CheckResult, Stability, WantedDirection))
@@ -398,14 +447,14 @@ makeStatusesMap :: Intents -> STM OpStatusesMap
 makeStatusesMap intents =
     let (Cons snap _) = snapshots intents
     in Map.fromList <$> traverse mkPair (Map.toList snap)
-  where
-    mkPair :: (OpUniqueId, OpIntent) -> STM (OpUniqueId, TVar OpStatus)
-    mkPair (oid, intent) = do
-        let dir = view intentDirection intent
-        tvar <- newTVar (newOpStatus dir)
-        return (oid,tvar)
-    newOpStatus :: WantedDirection -> OpStatus
-    newOpStatus dir = OpStatus Unknown dir Transient
+    where
+      mkPair :: (OpUniqueId, OpIntent) -> STM (OpUniqueId, TVar OpStatus)
+      mkPair (oid, intent) = do
+          let dir = view intentDirection intent
+          tvar <- newTVar (newOpStatus dir)
+          return (oid,tvar)
+      newOpStatus :: WantedDirection -> OpStatus
+      newOpStatus dir = OpStatus Unknown dir Transient
 
 adjustTVar' :: TVar a -> (a -> a) -> STM (a, a)
 adjustTVar' t f = do

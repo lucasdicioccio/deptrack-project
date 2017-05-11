@@ -2,9 +2,10 @@
 
 module Devops.Actions (
     concurrentTurnup , concurrentTurndown , concurrentUpkeep , checkStatuses
-  , display , defaultDotify , dotifyWithStatuses
-  , listUniqNodes
-  ) where
+    , sequentialTurnup, sequentialTurnDown
+    , display , defaultDotify , dotifyWithStatuses
+    , listUniqNodes
+    ) where
 
 import           Control.Concurrent.STM      (STM, atomically)
 import           Control.Concurrent.STM.TVar (TVar, readTVar)
@@ -18,12 +19,13 @@ import           Data.Tree                   (Tree (..), drawForest, flatten)
 import           Text.Dot                    (Dot, edge, showDot, userNode,
                                               userNodeId)
 
-import           Devops.Graph
 import           Devops.Base                 (CheckResult (..), Op (..),
-                                              OpDescription (..),
-                                              OpUniqueId,
+                                              OpDescription (..), OpUniqueId,
                                               PreOp, opUniqueId, preOpUniqueId,
                                               runPreOp)
+import           Devops.Graph
+
+-- * Concurrent Operations
 
 -- | Turns up a graph concurrently.
 concurrentTurnup :: OpGraph -> IO ()
@@ -63,6 +65,14 @@ checkStatuses graph = do
         status <- readTVar tvar
         return $ (opId, view opCheckResult status)
 
+-- * Sequential Operations
+
+sequentialTurnup ::  OpGraph -> IO ()
+sequentialTurnup (g,f1,f2) = syncTurnupGraph noBroadcast (transposeG g, f1, f2)
+
+sequentialTurnDown ::  OpGraph -> IO ()
+sequentialTurnDown = syncTurnDownGraph noBroadcast
+
 -- | Display a forest of operations.
 display :: [Tree PreOp] -> IO ()
 display = putStrLn . drawForest . (fmap . fmap) (show . opDescription . runPreOp)
@@ -93,7 +103,7 @@ defaultDotify = dotifyWith nameAttributes
 
 -- | Same as dotify but also colorize based on statuses passed in second argument.
 dotifyWithStatuses :: OpGraph -> Map OpUniqueId CheckResult -> String
-dotifyWithStatuses graph x = 
+dotifyWithStatuses graph x =
     let allAttributes = nameAttributes <> colorFromStatusAttributes x
     in dotifyWith allAttributes graph
 
