@@ -23,6 +23,7 @@ module Devops.Docker (
   , dockerizedDaemon
   , committedImage
   , fetchFile
+  , fetchLogs
   , resolveDockerRemote
   ) where
 
@@ -338,3 +339,12 @@ fetchFile path mkFp = fmap f (generatedFile path Cmd.docker mkArgs)
                , (convertString $ containerName cntnr) <> ":" <> containerizedPath
                , path
                ]
+
+-- | Fetches the logs from a container.
+fetchLogs :: FilePath -> DevOp (Dockerized a) -> DevOp FilePresent
+fetchLogs path mkDock = ioFile path io
+  where
+    io = do
+        dock <- Cmd.docker
+        (Dockerized _ cntnr) <- mkDock
+        return $ convertString <$> readProcess (binaryPath dock) ["logs", convertString $ containerName cntnr] ""
