@@ -14,7 +14,7 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     DepTrack, DepTrack.Parsing, DepTrack.DepCrumb
+  exposed-modules:     DepTrack, DepTrack.Parsing, DepTrack.DepCrumb, DepTrack.FreeEncoding
   other-extensions:    TupleSections, FlexibleInstances, MultiParamTypeClasses, DeriveFunctor
   build-depends:       base
                      , containers
