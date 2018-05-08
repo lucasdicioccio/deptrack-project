@@ -5,7 +5,11 @@ packages:
 - 'deptrack-devops'
 - 'deptrack-devops-recipes'
 - 'deptrack-devops-examples'
+- location:
+         git: https://github.com/lucasdicioccio/hdo.git
+         commit: 0b37825588a80cecec51c09fce7181fa2b912044
+  extra-dep: true
 extra-deps:
 - 'dotgen-0.4.2'
-- 'hdo-0.4'
-resolver: lts-8.8
+- 'http-querystring-1.0'
+resolver: lts-11.8

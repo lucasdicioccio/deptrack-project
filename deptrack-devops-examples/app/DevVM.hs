@@ -73,7 +73,7 @@ exe               = "deptrack-devops-example-devbox"
 root              = preExistingUser "root"
 devUser           = mereUser "curry"
 allIps            = "0.0.0.0"
-dropletConfig key = standardDroplet { size = G4, configImageSlug = ubuntuXenialSlug, keys = [key] }
+dropletConfig key = standardDroplet { size = SizeSlug "4gb", configImageSlug = ubuntuXenialSlug, keys = [key] }
 
 parasitedHost :: String -> Int -> DevOp ParasitedHost
 parasitedHost dropletName key = do

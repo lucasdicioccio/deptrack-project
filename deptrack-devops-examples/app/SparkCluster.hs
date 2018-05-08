@@ -45,7 +45,8 @@ import           System.FilePath
 exe    = "deptrack-devops-example-spark"
 root   = preExistingUser "root"
 allIps = "0.0.0.0"
-dropletConfig key=  standardDroplet { size = G2, configImageSlug = ubuntuXenialSlug, keys = [key] }
+dropletConfig key=  standardDroplet { size = SizeSlug "2gb", configImageSlug = ubuntuXenialSlug, keys = [key] }
+sparkDistributionURL :: String
 sparkDistributionURL = "http://d3kbcqa49mib13.cloudfront.net/spark-1.6.1-bin-hadoop2.6.tgz"
 
 parasitedHost :: String -> Int -> DevOp ParasitedHost
