@@ -37,7 +37,7 @@ import qualified Text.Parsec                 as Parsec
 import           DepTrack.DepCrumb
 import           DepTrack.Parsing
 
-type DepTrackT a m b = WriterT (DList (DepCrumb a)) m b
+type DepTrackT a m = WriterT (DList (DepCrumb a)) m
 
 -- | Declare the dependencies of a given computation.
 declare :: (Monad m) => a -> DepTrackT a m b -> DepTrackT a m b

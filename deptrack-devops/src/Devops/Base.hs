@@ -43,11 +43,11 @@ import           DepTrack
 type Name = Text
 
 -- | Handy name for tracking DevOp dependencies.
-type DevOpT m a = DepTrackT PreOp m a
+type DevOpT m = DepTrackT PreOp m
 
 -- | Handy name for tracking DevOp dependencies using a pure computation
 -- (recommended).
-type DevOp a = DevOpT [] a
+type DevOp = DevOpT []
 
 -- | Evaluates the return value of a DevOp, discarding the dependencies.
 runDevOp :: DevOp a -> Maybe a
