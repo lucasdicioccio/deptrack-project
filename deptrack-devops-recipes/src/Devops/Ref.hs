@@ -29,13 +29,16 @@ type Evaluator b = forall a. DevOp a -> b
 delay :: DevOp (Resolver a) -> (a -> DevOp b) -> DevOp (Resolver (DevOp b))
 delay r f = (fmap . fmap) f r
 
-delayedEval :: Typeable a => DevOp (Resolver (DevOp a)) -> Evaluator OpFunctions -> DevOp (Resolver a)
+delayedEval
+  :: (Monad m, Typeable a)
+  => DepTrackT PreOp m (Resolver (DevOp a))
+  -> (DevOp a -> OpFunctions)
+  -> DepTrackT PreOp m (Resolver (Maybe a))
 delayedEval mkR eval = devop fst mkOp $ do
     r <- mkR
     let devopIO = resolver r
     return (Resolver (resolvedKey r) (fmap runDevOp devopIO), devopIO)
   where
-    mkOp :: (Resolver a, IO (DevOp a)) -> Op
     mkOp (Resolver k _, devopIO) = buildOp
                 ("delayed " <> k)
                 "delayedEval a resolved op"

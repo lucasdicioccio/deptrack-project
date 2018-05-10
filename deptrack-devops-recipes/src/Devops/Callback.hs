@@ -66,7 +66,7 @@ continueConst tgt call =
     in continue obj fDevop fCall
 
 -- | Observes the result of a Continued object.
-eval :: Continued a -> a
+eval :: Continued a -> Maybe a
 eval (Continued arg f _) = runDevOp $ f arg
 
 -- | Constructs a 'BinaryCall' that will call-back the Continued object.

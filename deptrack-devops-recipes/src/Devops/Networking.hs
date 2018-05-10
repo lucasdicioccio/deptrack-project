@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
 
@@ -127,7 +129,7 @@ type HostString = Text
 data Remote = Remote { remoteIp :: !IpNetString }
 -- | A value on a remote.
 data Remoted a = Remoted !Remote !a
-  deriving Functor
+  deriving (Functor, Foldable, Traversable)
 -- | A proxied service.
 data Proxied a = Proxied { proxiedServiceInfo      :: !(IpNetString,Port a)
                          , proxiedServiceLocalPort :: !(Port a)

@@ -6,7 +6,9 @@
 module Main where
 
 import           Control.Distributed.Closure
-import           Control.Monad (void)
+import           Control.Monad (guard, void)
+import           Data.Traversable (sequence)
+import           Data.Maybe (isJust)
 import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
@@ -89,12 +91,17 @@ stages LocalHost self fixCall = void $ do
                                    id -- no modifications before start
 
     -- the locally-running reverse proxy
-    let siteproxy = delay (resolveDockerRemote website) (mainNginxProxy . adapt)
+    let localReverseProxy innerProxy = do
+            -- we traverse the (Remote Maybe _) into a (Maybe Remote _)
+            let maybeInner = sequence innerProxy
+            guard (isJust maybeInner)
+            let (Just nginx) = maybeInner
+            let ws = (fmap . fmap) nginxAsWebService nginx
+            mainNginxProxy $ fmap exposed2listening ws
 
-    delayedEval siteproxy evalDelay
+    delayedEval (delay (resolveDockerRemote website) localReverseProxy) evalDelay
   where
     miniMain c ys = simpleMain c [optimizeDebianPackages] ys
-    adapt = fmap exposed2listening . (fmap . fmap) nginxAsWebService
     baseImageConfig = BaseImageConfig bootstrapBin xenial
 
 mainNginxProxy :: Remoted (Listening WebService) -> DevOp (Exposed (Daemon Nginx))

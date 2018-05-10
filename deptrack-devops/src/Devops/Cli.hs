@@ -163,7 +163,11 @@ methodArg List                    = "list"
 
 -- | Evaluates the dependencies of a DevOp, discarding any result.
 getDependenciesOnly :: DevOp a -> Forest PreOp
-getDependenciesOnly = snd . runIdentity . evalDepForest1
+getDependenciesOnly devop =
+  let
+     res = evalDepForest1 devop
+  in
+     case res of [] -> [] ; ((_, forest):_) -> forest
 
 -- | Builds a Graph from dependencies represented as a Forest.
 --

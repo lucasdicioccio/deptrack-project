@@ -27,7 +27,9 @@ module Devops.Docker (
   , resolveDockerRemote
   ) where
 
+import           Control.Monad (guard)
 import           Data.Aeson
+import           Data.Maybe (isJust)
 import           Data.Monoid ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
@@ -223,7 +225,7 @@ dockerized :: Name
            -- ^ an optional setup phase to modify the container. Use 'id' for
            -- "no particular setup" or partially-apply 'insertFile' to add
            -- extra data.
-           -> DevOp (Dockerized a)
+           -> DevOp (Dockerized (Maybe a))
 dockerized name mkImage cont beforeStart = declare op $ do
     let obj = eval cont
     let (BinaryCall selfPath fArgs) = callback cont
@@ -282,11 +284,12 @@ resolveDockerRemote mkService = do
 --
 -- The Continued below will get called with 'Upkeep' rather than 'TurnUp' so
 -- that the main forked thread does not die.
-dockerizedDaemon :: Name
-                 -> DevOp DockerImage
-                 -> Continued (f (Daemon a))
-                 -> (DevOp StandbyContainer -> DevOp StandbyContainer)
-                 -> DevOp (DockerizedDaemon (f (Daemon a)))
+dockerizedDaemon
+  :: Name
+  -> DevOp DockerImage
+  -> Continued (f (Daemon a))
+  -> (DevOp StandbyContainer -> DevOp StandbyContainer)
+  -> DevOp (DockerizedDaemon (Maybe (f (Daemon a))))
 dockerizedDaemon name mkImage cont beforeStart = declare op $ do
     let obj = eval cont
     let (BinaryCall selfPath fArgs) = callback cont
@@ -328,12 +331,15 @@ committedImage mkDockerized = devop fst mkOp $ do
                 noAction
 
 -- | Fetches a file from a container.
-fetchFile :: FilePath -> DevOp (Dockerized FilePresent) -> DevOp FilePresent
-fetchFile path mkFp = fmap f (generatedFile path Cmd.docker mkArgs)
+fetchFile :: FilePath -> DevOp (Dockerized (Maybe FilePresent)) -> DevOp (FilePresent)
+fetchFile path mkFp =
+    fmap f (generatedFile path Cmd.docker mkArgs)
   where
     f (_,_,filepresent) = filepresent
     mkArgs = do
-        (Dockerized (FilePresent containerizedPath) cntnr) <- mkFp
+        (Dockerized cPath cntnr) <- mkFp
+        guard $ isJust cPath
+        let Just (FilePresent containerizedPath) = cPath
         return [ "container"
                , "cp"
                , (convertString $ containerName cntnr) <> ":" <> containerizedPath

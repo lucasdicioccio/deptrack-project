@@ -33,6 +33,7 @@ module Devops.Base (
 import           Control.Monad.Identity (Identity, runIdentity)
 import           Data.Hashable          (Hashable (..), hash)
 import           Data.Proxy
+import qualified Safe
 import           Data.Text              (Text)
 import           Data.Typeable          (TypeRep, Typeable, cast, typeOf)
 import           GHC.Generics           (Generic)
@@ -46,11 +47,11 @@ type DevOpT m a = DepTrackT PreOp m a
 
 -- | Handy name for tracking DevOp dependencies using a pure computation
 -- (recommended).
-type DevOp a = DevOpT Identity a
+type DevOp a = DevOpT [] a
 
 -- | Evaluates the return value of a DevOp, discarding the dependencies.
-runDevOp :: DevOp a -> a
-runDevOp = runIdentity . value
+runDevOp :: DevOp a -> Maybe a
+runDevOp = Safe.headMay . value
 
 -- | Encapsulates a deferred `Op` along with an `a` argument to generate it.
 --

@@ -118,12 +118,12 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- adapted from `Devops.Parasite`
 -- TODO unify the different ways of talking to a remote host
 -- DEPRECATED
-remoted :: Typeable a
+remoted :: (Typeable a)
         => (Closure (DevOp a) -> BinaryCall)
         -> DevOp User
         -> Closure (DevOp a)
         -> DevOp ParasitedHost
-        -> DevOp (Remoted a)
+        -> DevOp (Remoted (Maybe a))
 remoted mkCb usr clo host = devop fst mkOp $ do
     let remoteObj = runDevOp $ unclosure clo
     let (BinaryCall selfPath fArgs) = mkCb clo
@@ -189,8 +189,12 @@ remotedWith mkAction usr clo host = devop fst mkOp $ do
 -- | Remotely callback some `Continued a` on some parasited host.
 --
 -- Note the remote continuation is run `Sequentially`
-remoteContinued :: (Typeable a)
-               => DevOp User -> Continued a -> DevOp ParasitedHost -> DevOp (Remoted a)
+remoteContinued
+  :: (Typeable a)
+  => DevOp User
+  -> Continued a
+  -> DevOp ParasitedHost
+  -> DevOp (Remoted (Maybe a))
 remoteContinued usr cont host =  devop fst mkOp $ do
     u <- usr
     c <- ssh

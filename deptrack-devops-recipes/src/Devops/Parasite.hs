@@ -71,7 +71,7 @@ parasite selfPath mkHost = track mkOp $ do
 remoted :: Typeable a
         => Continued a
         -> DevOp ParasitedHost
-        -> DevOp (Remoted a)
+        -> DevOp (Remoted (Maybe a))
 remoted cont host = devop fst mkOp $ do
     c <- ssh
     let obj = eval cont
