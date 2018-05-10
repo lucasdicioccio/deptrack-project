@@ -64,10 +64,10 @@ namedPartitionPath = snd
 
 formatDevice :: DevOp (Partitioned (BlockDevice a))
              -> DevOp (Formatted (Partitioned (BlockDevice a)))
-formatDevice mkdevice = do
-    dev <- mkdevice
-    let mkParts = traverse namedPartitions mkdevice
-    _ <- traverse formatPartition mkParts
+formatDevice mkparted = do
+    dev <- mkparted
+    let partitions = fmap pure (namedPartitions dev)
+    _ <- traverse formatPartition partitions `inject` mkparted
     return (Formatted dev)
   
 namedPartitions :: Partitioned (BlockDevice a) -> [NamedPartition]

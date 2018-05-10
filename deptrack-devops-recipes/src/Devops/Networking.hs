@@ -42,7 +42,6 @@ import           Prelude                 hiding (readFile)
 import           System.IO.Strict        (readFile)
 import           Text.Printf             (printf)
 
-import           DepTrack
 import           Devops.Binary
 import           Devops.Debian.Commands
 import           Devops.Debian.User      (User (..))

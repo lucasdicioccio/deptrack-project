@@ -7,7 +7,6 @@ import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
-import           DepTrack                (declare, track)
 import           Prelude                 hiding (readFile)
 import           System.FilePath         ((</>))
 import           System.IO.Strict        (readFile)

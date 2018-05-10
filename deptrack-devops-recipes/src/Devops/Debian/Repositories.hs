@@ -2,7 +2,6 @@
 
 module Devops.Debian.Repositories where
 
-import           DepTrack                (inject)
 import qualified Data.ByteString.Char8   as ByteString
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)

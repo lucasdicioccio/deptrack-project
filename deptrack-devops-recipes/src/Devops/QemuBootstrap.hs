@@ -5,7 +5,6 @@ module Devops.QemuBootstrap where
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
-import           DepTrack                (inject)
 import           System.FilePath         ((</>))
 
 import           Devops.Base

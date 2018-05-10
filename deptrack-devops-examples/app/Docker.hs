@@ -8,11 +8,10 @@ module Main where
 
 import           Control.Distributed.Closure
 import           Control.Monad (void)
-import           DepTrack (inject)
 import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
-import           Devops.Base (DevOp)
+import           Devops.Base (DevOp, inject)
 import           Devops.BaseImage
 import           Devops.Binary (Binary, HasBinary)
 import           Devops.Callback

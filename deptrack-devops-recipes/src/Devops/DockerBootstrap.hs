@@ -7,7 +7,6 @@ module Devops.DockerBootstrap (
   ) where
 
 import           Data.Monoid        ((<>))
-import           DepTrack           (inject)
 
 import           Devops.Base
 import           Devops.BaseImage

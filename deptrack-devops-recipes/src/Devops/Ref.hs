@@ -8,7 +8,6 @@ module Devops.Ref where
 import           Data.Monoid
 import           Data.Text
 import           Data.Typeable
-import           DepTrack
 import           Devops.Base
 
 type Key = Text
@@ -31,9 +30,9 @@ delay r f = (fmap . fmap) f r
 
 delayedEval
   :: (Monad m, Typeable a)
-  => DepTrackT PreOp m (Resolver (DevOp a))
+  => DevOpT e m (Resolver (DevOp a))
   -> (DevOp a -> OpFunctions)
-  -> DepTrackT PreOp m (Resolver (Maybe a))
+  -> DevOpT e m (Resolver (Maybe a))
 delayedEval mkR eval = devop fst mkOp $ do
     r <- mkR
     let devopIO = resolver r

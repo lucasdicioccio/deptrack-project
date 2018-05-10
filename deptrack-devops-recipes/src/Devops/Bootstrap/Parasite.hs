@@ -16,7 +16,6 @@ import           Data.Monoid                 ((<>))
 import           Data.String.Conversions     (convertString)
 import           Data.Text                   (Text, pack, unpack)
 import           Data.Typeable
-import           DepTrack
 import           Devops.Base
 import           Devops.Binary
 import           Devops.Callback

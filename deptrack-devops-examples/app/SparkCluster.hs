@@ -17,7 +17,6 @@ import           Data.Monoid
 import           Data.String.Conversions     (convertString)
 import           Data.Text                   (pack, unpack)
 import           Data.Typeable
-import           DepTrack
 import           Devops.Actions
 import           Devops.Archive
 import           Devops.Base

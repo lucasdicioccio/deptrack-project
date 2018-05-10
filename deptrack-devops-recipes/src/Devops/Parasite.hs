@@ -18,7 +18,6 @@ import qualified Data.Text                   as Text
 import           Data.Typeable               (Typeable)
 import           System.FilePath.Posix       (takeBaseName, (</>))
 
-import           DepTrack
 import           Devops.Callback
 import           Devops.Cli
 import           Devops.Debian.Commands      hiding (r, umount)

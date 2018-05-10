@@ -6,7 +6,7 @@
 module Main where
 
 import           Control.Monad             (guard, void)
-import           Control.Monad.Reader      (ReaderT, runReaderT, asks, lift)
+import           Control.Monad.Reader      (ReaderT, runReaderT, asks, lift, local)
 import           Control.Applicative       ((<|>))
 import           Devops.Binary             (binary)
 import           Devops.Base               (DevOp, DevOpT)
@@ -42,7 +42,7 @@ main = do
     let stages n _ _ = runReaderT n portableGit
     let app = App (\(x:y:[]) -> (y, appMethod x))
                   undefined
-                  (\n _ _ -> runReaderT (void portableGit) n)
+                  (\n _ _ -> runReaderT (local (const "debian") $ void portableGit) n)
                   []
     appMain app
 

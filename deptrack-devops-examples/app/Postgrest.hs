@@ -14,12 +14,11 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Monoid ((<>))
 
-import           DepTrack (inject)
 import           Devops.Debian.Base (DebianPackage, debianPackage, deb, installedWith)
 import           Devops.Storage (FilePresent(..), FileContent, fileContent)
 import           Devops.Haskell (StackProject, stackProject, stackInstall)
 import           Devops.Debian.User (mereUser, group)
-import           Devops.Base (DevOp, buildOp, devop, noAction, noCheck)
+import           Devops.Base (DevOp, buildOp, devop, noAction, noCheck, inject)
 import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 import           Devops.Postgre (PGUser(..), PGDatabase(..), pgUser, pgDatabase, libpqDev)

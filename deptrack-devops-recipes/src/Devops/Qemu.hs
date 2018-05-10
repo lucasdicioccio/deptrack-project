@@ -8,7 +8,6 @@ module Devops.Qemu where
 
 import           Data.Monoid            ((<>))
 import qualified Data.Text              as Text
-import           DepTrack               (declare)
 import           System.FilePath.Posix  ((</>))
 import           Text.Printf            (printf)
 

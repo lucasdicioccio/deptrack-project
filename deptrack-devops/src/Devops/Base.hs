@@ -27,31 +27,46 @@ module Devops.Base (
   , devop
   , Name
   --
+  , track
+  , declare
+  , inject
   , runDevOp
+  , getDependenciesOnly
   ) where
 
 import           Control.Monad.Identity (Identity, runIdentity)
+import           Control.Monad.Reader   (ReaderT, runReaderT, ask, lift)
 import           Data.Hashable          (Hashable (..), hash)
 import           Data.Proxy
 import qualified Safe
 import           Data.Text              (Text)
+import           Data.Tree              (Forest)
 import           Data.Typeable          (TypeRep, Typeable, cast, typeOf)
 import           GHC.Generics           (Generic)
 
-import           DepTrack
+import           DepTrack (DepTrackT)
+import qualified DepTrack
 
 type Name = Text
 
 -- | Handy name for tracking DevOp dependencies.
-type DevOpT m = DepTrackT PreOp m
+type DevOpT e m = ReaderT e (DepTrackT PreOp m)
 
 -- | Handy name for tracking DevOp dependencies using a pure computation
 -- (recommended).
-type DevOp = DevOpT []
+type DevOp = DevOpT () []
 
 -- | Evaluates the return value of a DevOp, discarding the dependencies.
 runDevOp :: DevOp a -> Maybe a
-runDevOp = Safe.headMay . value
+runDevOp = Safe.headMay . DepTrack.value . flip runReaderT ()
+
+-- | Evaluates the dependencies of a DevOp, discarding any result.
+getDependenciesOnly :: DevOp a -> Forest PreOp
+getDependenciesOnly devop =
+  let
+     res = DepTrack.evalDepForest1 $ runReaderT devop ()
+  in
+     case res of [] -> [] ; ((_, forest):_) -> forest
 
 -- | Encapsulates a deferred `Op` along with an `a` argument to generate it.
 --
@@ -183,8 +198,39 @@ neutralize (Op desc _ oid) =
 
 -- | Tracks dependencies to build an object given a pair of projection --
 -- functions and a DepTrackT computation tracking predecessors.
-devop :: (Typeable b, Monad m)
-  => (a -> b) -> (a -> Op)
-  -> DepTrackT PreOp m a -> DepTrackT PreOp m b
-devop f g a = fmap f $ track g' a
-  where g' v = let !o = g v in rawpreop (f v) (const o)
+devop
+  :: (Typeable b, Monad m)
+  => (a -> b)
+  -> (a -> Op)
+  -> DevOpT e m a
+  -> DevOpT e m b
+devop f g a = do
+    env <- ask
+    let tracked = DepTrack.track g' (runReaderT a env)
+    fmap f $ lift tracked
+  where
+    g' v = let !o = g v in rawpreop (f v) (const o)
+
+track :: (Monad m)
+  => (a -> PreOp)
+  -> DevOpT e m a
+  -> DevOpT e m a
+track f a = do
+    env <- ask
+    let tracked = DepTrack.track f (runReaderT a env)
+    lift tracked
+
+declare :: (Monad m)
+  => PreOp
+  -> DevOpT e m a
+  -> DevOpT e m a
+declare obj = track (const obj)
+
+inject :: (Monad m)
+  => DevOpT e m a
+  -> DevOpT e m b
+  -> DevOpT e m (a, b)
+inject m1 m2 = do
+  env <- ask
+  let tracked = DepTrack.inject (runReaderT m1 env) (runReaderT m2 env)
+  lift tracked

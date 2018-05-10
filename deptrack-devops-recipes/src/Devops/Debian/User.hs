@@ -18,7 +18,6 @@ import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
-import           DepTrack                (track)
 import           System.FilePath.Posix   ((</>))
 import           System.Posix.Files      (setOwnerAndGroup)
 import           System.Posix.User       (getGroupEntryForName,

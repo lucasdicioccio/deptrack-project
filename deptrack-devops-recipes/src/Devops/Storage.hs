@@ -32,7 +32,6 @@ import           System.Directory       (createDirectoryIfMissing,
 import           System.FilePath.Posix  (takeDirectory, (</>))
 import           System.Posix.Files     (createSymbolicLink, fileExist)
 
-import           DepTrack
 import           Devops.Base
 import           Devops.Binary
 import qualified Devops.Debian.Commands as Cmd

@@ -10,7 +10,6 @@ module Devops.BaseImage where
 import           Data.Monoid             ((<>))
 import qualified Data.Text               as Text
 import           Data.Typeable           (Typeable)
-import           DepTrack                (declare)
 import           System.FilePath         (makeRelative, (</>))
 
 import           Devops.Base
