@@ -71,7 +71,7 @@ dhcpConfiguration plan (Remoted dns _) =
                                ]
 
 -- | An apparmor include config file allowing dhcpd to read its configuration.
-apparmorConfig :: FilePresent -> DevOp FilePresent
+apparmorConfig :: FilePresent -> DevOp env FilePresent
 apparmorConfig (FilePresent pathToDhcpConfig) = do
     let apparmorConfigPath = "/etc/apparmor.d/dhcpd.d/devop-config"
     let mainCfgPath = "/etc/apparmor.d/usr.sbin.dhcpd"
@@ -88,7 +88,7 @@ dhcpCommanArgs (FilePresent path, iface) =
 
 -- | Deletes the leases and leases~ files because they sometime hurt after a
 -- crash+restart.
-trashDhcpLeases :: DevOp ()
+trashDhcpLeases :: DevOp env ()
 trashDhcpLeases = declare mkOp (return ())
   where
     mkOp = buildPreOp ("trash-dhcp-leases") ("deletes the dhcp-leases file")
@@ -102,9 +102,9 @@ trashDhcpLeases = declare mkOp (return ())
 -- | Spawns the server.
 dhcpServer :: RunDir
            -> AddressPlan
-           -> DevOp (Remoted (Listening DnsService))
-           -> DevOp Bridge
-           -> DevOp (Daemon DHCP)
+           -> DevOp env (Remoted (Listening DnsService))
+           -> DevOp env Bridge
+           -> DevOp env (Daemon DHCP)
 dhcpServer rundir plan mkDns br = daemon "dhcpd" Nothing dhcpd dhcpCommanArgs $ do
   dns <- mkDns
   let (!txtConfig) = convertString (dhcpConfiguration plan dns)

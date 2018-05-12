@@ -16,9 +16,9 @@ data MountedPartition = MountedPartition {
   , mountedPartition :: NamedPartition
   }
 
-mount :: DevOp NamedPartition
-      -> DevOp DirectoryPresent
-      -> DevOp MountedPartition
+mount :: DevOp env NamedPartition
+      -> DevOp env DirectoryPresent
+      -> DevOp env MountedPartition
 mount mkpart mkdir = devop fst mkOp $ do
     part <- mkpart
     dir@(DirectoryPresent mntdir) <- mkdir

@@ -32,33 +32,33 @@ instance HasBinary (DebianPackage "postgresql") "createuser" where
 instance HasBinary (DebianPackage "postgresql") "dropuser" where
 instance HasBinary (DebianPackage "postgresql") "psql" where
 
-postgresql :: DevOp (DebianPackage "postgresql")
+postgresql :: DevOp env (DebianPackage "postgresql")
 postgresql = debianPackage
 
-libpqDev :: DevOp (DebianPackage "libpq-dev")
+libpqDev :: DevOp env (DebianPackage "libpq-dev")
 libpqDev = deb "libpq-dev"
 
-psql :: DevOp (Binary "psql")
+psql :: DevOp env (Binary "psql")
 psql = binary `installedWith` postgresql
 
-createdb :: DevOp (Binary "createdb")
+createdb :: DevOp env (Binary "createdb")
 createdb = binary `installedWith` postgresql
 
-dropdb :: DevOp (Binary "dropdb")
+dropdb :: DevOp env (Binary "dropdb")
 dropdb = binary `installedWith` postgresql
 
-createuser :: DevOp (Binary "createuser")
+createuser :: DevOp env (Binary "createuser")
 createuser = binary `installedWith` postgresql
 
-dropuser :: DevOp (Binary "dropuser")
+dropuser :: DevOp env (Binary "dropuser")
 dropuser = binary `installedWith` postgresql
 
 -- | A PostGre database owned by a given PostGre user.
 pgDatabase :: Text
            -- ^ database name
-           -> DevOp PGUser
+           -> DevOp env PGUser
            -- ^ database owner
-           -> DevOp PGDatabase
+           -> DevOp env PGDatabase
 pgDatabase n mkU = devop snd mkOp $ do
     user@(PGUser u _) <- mkU
     c <- createdb
@@ -78,7 +78,7 @@ pgUser :: Text
        -- ^ username
        -> Text
        -- ^ user-password
-       -> DevOp PGUser
+       -> DevOp env PGUser
 pgUser username pass = devop snd mkOp $ do
     c <- createuser
     s <- psql

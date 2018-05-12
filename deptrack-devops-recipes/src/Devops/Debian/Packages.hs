@@ -13,97 +13,97 @@ import           Devops.Debian.Repositories
 import qualified Devops.Debian.Repositories as Repos
 import           Devops.Base
 
-apparmor :: DevOp (DebianPackage "apparmor")
+apparmor :: DevOp env (DebianPackage "apparmor")
 apparmor = debianPackage
 
-bind9 :: DevOp (DebianPackage "bind9")
+bind9 :: DevOp env (DebianPackage "bind9")
 bind9 = debianPackage
 
-bridgeUtils :: DevOp (DebianPackage "bridge-utils")
+bridgeUtils :: DevOp env (DebianPackage "bridge-utils")
 bridgeUtils = debianPackage
 
-coreutils :: DevOp (DebianPackage "coreutils")
+coreutils :: DevOp env (DebianPackage "coreutils")
 coreutils = debianPackage
 
-debootstrap :: DevOp (DebianPackage "debootstrap")
+debootstrap :: DevOp env (DebianPackage "debootstrap")
 debootstrap = debianPackage
 
-dockerEngine :: DevOp (DebianPackage "docker-engine")
+dockerEngine :: DevOp env (DebianPackage "docker-engine")
 dockerEngine = generalDebianPackage "docker-engine" Repos.docker
 
-dotnetCore :: DevOp (DebianPackage "dotnet-dev")
+dotnetCore :: DevOp env (DebianPackage "dotnet-dev")
 dotnetCore = generalDebianPackage "dotnet-dev-1.0.1" Repos.dotnet
 
-e2fsprogs :: DevOp (DebianPackage "e2fsprogs")
+e2fsprogs :: DevOp env (DebianPackage "e2fsprogs")
 e2fsprogs = debianPackage
 
-fuse :: DevOp (DebianPackage "fuse")
+fuse :: DevOp env (DebianPackage "fuse")
 fuse = debianPackage
 
-gitCore :: DevOp (DebianPackage "git-core")
+gitCore :: DevOp env (DebianPackage "git-core")
 gitCore = debianPackage
 
-grub :: DevOp (DebianPackage "grub-pc")
+grub :: DevOp env (DebianPackage "grub-pc")
 grub = debianPackage
 
-iproute2 :: DevOp (DebianPackage "iproute2")
+iproute2 :: DevOp env (DebianPackage "iproute2")
 iproute2 = debianPackage
 
-iptables :: DevOp (DebianPackage "iptables")
+iptables :: DevOp env (DebianPackage "iptables")
 iptables = debianPackage
 
-iscDhcpServer :: DevOp (DebianPackage "isc-dhcp-server")
+iscDhcpServer :: DevOp env (DebianPackage "isc-dhcp-server")
 iscDhcpServer = debianPackage
 
-jenkins :: DevOp (DebianPackage "jenkins")
+jenkins :: DevOp env (DebianPackage "jenkins")
 jenkins = generalDebianPackage "jenkins" Repos.jenkins
 
-kmod :: DevOp (DebianPackage "kmod")
+kmod :: DevOp env (DebianPackage "kmod")
 kmod = debianPackage
 
-mount :: DevOp (DebianPackage "mount")
+mount :: DevOp env (DebianPackage "mount")
 mount = debianPackage
 
-nginx :: DevOp (DebianPackage "nginx")
+nginx :: DevOp env (DebianPackage "nginx")
 nginx = debianPackage
 
-opensshClient :: DevOp (DebianPackage "openssh-client")
+opensshClient :: DevOp env (DebianPackage "openssh-client")
 opensshClient = debianPackage
 
-parted :: DevOp (DebianPackage "parted")
+parted :: DevOp env (DebianPackage "parted")
 parted = debianPackage
 
-passwd :: DevOp (DebianPackage "passwd")
+passwd :: DevOp env (DebianPackage "passwd")
 passwd = debianPackage
 
-python3Pip :: DevOp (DebianPackage "python3-pip")
+python3Pip :: DevOp env (DebianPackage "python3-pip")
 python3Pip = debianPackage
 
-qemu :: DevOp (DebianPackage "qemu")
+qemu :: DevOp env (DebianPackage "qemu")
 qemu = debianPackage
 
-qemuUtils :: DevOp (DebianPackage "qemu-utils")
+qemuUtils :: DevOp env (DebianPackage "qemu-utils")
 qemuUtils = debianPackage
 
-rBaseDev :: DevOp (DebianPackage "r-base-dev")
+rBaseDev :: DevOp env (DebianPackage "r-base-dev")
 rBaseDev = generalDebianPackage "r-base-dev" rCran
 
-sshfs :: DevOp (DebianPackage "sshfs")
+sshfs :: DevOp env (DebianPackage "sshfs")
 sshfs = debianPackage
 
-stack :: DevOp (DebianPackage "stack")
+stack :: DevOp env (DebianPackage "stack")
 stack = generalDebianPackage "stack" Repos.fpComplete
 
-umlUtilities :: DevOp (DebianPackage "uml-utilities")
+umlUtilities :: DevOp env (DebianPackage "uml-utilities")
 umlUtilities = debianPackage
 
-utilLinux :: DevOp (DebianPackage "util-linux")
+utilLinux :: DevOp env (DebianPackage "util-linux")
 utilLinux = debianPackage
 
-wget :: DevOp (DebianPackage "wget")
+wget :: DevOp env (DebianPackage "wget")
 wget = debianPackage
 
-tar :: DevOp (DebianPackage "tar")
+tar :: DevOp env (DebianPackage "tar")
 tar = debianPackage
 
 instance HasBinary (DebianPackage "apparmor") "apparmor_parser"

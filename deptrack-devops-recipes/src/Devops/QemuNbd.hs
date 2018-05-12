@@ -21,14 +21,14 @@ data NBDExport = NBDExport NBDSlot QemuImage
 newtype QemuImage = QemuImage { getImage :: FilePresent }
 
 -- | Creates a new QCOW2 image of a given size.
-qcow2Image :: FilePath -> GB Size -> DevOp QemuImage
+qcow2Image :: FilePath -> GB Size -> DevOp env QemuImage
 qcow2Image path gb = do
     let args = pure ["create", "-f", "qcow2", path, show gb <> "G"]
     (_,_,x) <- generatedFile path qemuImg args
     return (QemuImage x)
 
 -- | Uses qemu-nbd to export and image on a given slot.
-nbdMount :: NBDSlot -> DevOp QemuImage -> DevOp NBDExport
+nbdMount :: NBDSlot -> DevOp env QemuImage -> DevOp env NBDExport
 nbdMount slot mkImg = devop (NBDExport slot . fst) mkOp $ do
     _ <- kernelmodule "nbd" [("max_part","8")]
     img <- mkImg

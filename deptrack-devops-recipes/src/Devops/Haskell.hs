@@ -51,17 +51,17 @@ stackInstall ::
      (KnownSymbol bin, KnownSymbol pkg, HasBinary (StackProject pkg) bin)
   => FilePath
   -- ^ directory where to store binaries from the project
-  -> DevOp (StackProject pkg)
+  -> DevOp env (StackProject pkg)
   -- ^ project to build binaries from
-  -> DevOp (Binary bin)
+  -> DevOp env (Binary bin)
 stackInstall = go Proxy Proxy
   where
     go :: (KnownSymbol bin, KnownSymbol pkg, HasBinary (StackProject pkg) bin)
        => Proxy bin
        -> Proxy pkg
        -> FilePath
-       -> DevOp (StackProject pkg)
-       -> DevOp (Binary bin)
+       -> DevOp env (StackProject pkg)
+       -> DevOp env (Binary bin)
     go proxyBin proxyPkg installdir mkProj = do
         let bin = symbolVal proxyBin
         let b = Text.pack bin
@@ -80,8 +80,8 @@ stackInstall = go Proxy Proxy
 stackProject :: GitUrl
              -> GitBranch
              -> FilePath
-             -> DevOp User
-             -> DevOp (StackProject a)
+             -> DevOp env User
+             -> DevOp env (StackProject a)
 stackProject url branch installDir user = do
     let repo = getDir <$> gitClone url branch git (userDirectory installDir user)
     let allcommands = [Setup, Update, Build]
@@ -91,16 +91,16 @@ stackProject url branch installDir user = do
     getDir (GitRepo d _ _) = d
 
 -- | Installs a stack package.
-stackPackage :: Name -> DevOp User -> DevOp ()
+stackPackage :: Name -> DevOp env User -> DevOp env ()
 stackPackage n user = do
   stackRun stack (directory "/") user [Setup, Install n]
 
 -- | Runs a list of stack commands in a directory.
-stackRun :: DevOp (Binary "stack")
-         -> DevOp DirectoryPresent
-         -> DevOp User
+stackRun :: DevOp env (Binary "stack")
+         -> DevOp env DirectoryPresent
+         -> DevOp env User
          -> [StackCommand]
-         -> DevOp ()
+         -> DevOp env ()
 stackRun mkStack mkRepo mkUser commands = devop (const ()) mkOp $ do
     s <- mkStack
     r <- mkRepo

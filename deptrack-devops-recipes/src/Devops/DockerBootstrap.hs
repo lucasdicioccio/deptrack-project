@@ -23,7 +23,7 @@ xenial = Debootstrap.xenial ()
 simpleBootstrap :: FilePath
                 -> (BaseImageConfig DockerBase)
                 -> BinaryCall
-                -> DevOp (BaseImage DockerBase)
+                -> DevOp env (BaseImage DockerBase)
 simpleBootstrap imgpath cfg cb = do
     let debootstrapdir = directory (imgpath <> ".debootstrapdir")
     let deboostrapping = bootstrap imgpath debootstrapdir cfg noMounts cb

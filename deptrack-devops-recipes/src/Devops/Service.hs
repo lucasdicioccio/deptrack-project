@@ -63,11 +63,11 @@ type family DaemonConfig a :: *
 -- SIGKILL.
 daemon :: (Typeable a) =>
      Name
-  -> Maybe (DevOp (User, Group))
-  -> DevOp (Binary path)
+  -> Maybe (DevOp env (User, Group))
+  -> DevOp env (Binary path)
   -> (DaemonConfig a -> CommandArgs)
-  -> DevOp (DaemonConfig a)
-  -> DevOp (Daemon a)
+  -> DevOp env (DaemonConfig a)
+  -> DevOp env (Daemon a)
 daemon name mkUserGroup mkBin toCmdArgs config = devop snd mkOp $ do
     DirectoryPresent dirPath <- directory "/var/run/devops"
     let pidFile = dirPath </> Text.unpack name
@@ -86,12 +86,12 @@ daemon name mkUserGroup mkBin toCmdArgs config = devop snd mkOp $ do
 
 reloadableDaemon :: (Typeable a)
   => Name
-  -> Maybe (DevOp (User, Group))
-  -> DevOp (Binary path)
+  -> Maybe (DevOp env (User, Group))
+  -> DevOp env (Binary path)
   -> (DaemonConfig a -> CommandArgs)
   -> (Daemon a -> OpAction)
-  -> DevOp (DaemonConfig a)
-  -> DevOp (Daemon a)
+  -> DevOp env (DaemonConfig a)
+  -> DevOp env (Daemon a)
 reloadableDaemon name mkUserGroup mkBin toCmdArgs reloadAction config =
     devop snd mkOp $ do
         DirectoryPresent dirPath <- directory "/var/run/devops"

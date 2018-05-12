@@ -28,21 +28,21 @@ import           Devops.QemuBootstrap (QemuBase)
 type RAM = Int -- TODO: improve
 type RepoDir = FilePath
 
-qemuUser :: DevOp (User)
+qemuUser :: DevOp env (User)
 qemuUser = user "devopuser" qemuGroup (sequence [kvmGroup])
 
-qemuGroup :: DevOp Group
+qemuGroup :: DevOp env Group
 qemuGroup = group "devopuser"
 
-qemuUserKvmGroup :: DevOp (User,Group)
+qemuUserKvmGroup :: DevOp env (User,Group)
 qemuUserKvmGroup = (,) <$> qemuUser <*> kvmGroup
 
-kvmGroup :: DevOp Group
+kvmGroup :: DevOp env Group
 kvmGroup = deb "qemu-kvm" >> udevRuleHackForKvm >> preExistingGroup "kvm"
   where udevRuleHackForKvm = fileContent "/etc/udev/rules.d/80-kvm.rules"
                                          (pure "KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\"\n")
 
-qemufilePermissions :: DevOp FilePresent -> DevOp FilePresent
+qemufilePermissions :: DevOp env FilePresent -> DevOp env FilePresent
 qemufilePermissions = filePermissions ((,) <$> qemuUser <*> qemuGroup)
 
 data QemuVM
@@ -68,7 +68,7 @@ diskFileName :: Index -> Depth -> Name
 diskFileName idx n = Text.pack (printf "disk-%02d.%d.img" idx n)
 
 -- | Fetches a DiskFile identified by its name from a known local repository.
-fetchDiskFile :: (RunDir, RepoDir) -> DiskFile -> DevOp (RepositoryFile, FilePresent)
+fetchDiskFile :: (RunDir, RepoDir) -> DiskFile -> DevOp env (RepositoryFile, FilePresent)
 fetchDiskFile (rundir,repodir) (DiskFile x) = do
   let origin = localRepositoryFile (repodir </> Text.unpack x)
   (repo,fp) <- fileCopy (pure $ rundir </> Text.unpack x) origin
@@ -76,16 +76,16 @@ fetchDiskFile (rundir,repodir) (DiskFile x) = do
   return (repo, filepresent)
 
 -- | Prepares a QemuDisk from a list of diskfiles, appending a new image at the beginning.
-newHeadFromBackingChain :: (RunDir, RepoDir) -> Index -> [DiskFile] -> DevOp QemuDisk
+newHeadFromBackingChain :: (RunDir, RepoDir) -> Index -> [DiskFile] -> DevOp env QemuDisk
 newHeadFromBackingChain env idx chain = do
   QemuDisk <$> newHeadDiskfile env idx chain
 
 -- | Prepares a QemuDisk from a list of diskfiles, keeping the beginning of the backing chain.
-savedHeadfromBackingChain :: (RunDir, RepoDir) -> Index -> [DiskFile] -> DevOp QemuDisk
+savedHeadfromBackingChain :: (RunDir, RepoDir) -> Index -> [DiskFile] -> DevOp env QemuDisk
 savedHeadfromBackingChain env idx chain = do
   QemuDisk <$> preserveHeadDiskFile env idx chain
 
-preserveHeadDiskFile :: (RunDir, RepoDir) -> Index -> [DiskFile] -> DevOp FilePresent
+preserveHeadDiskFile :: (RunDir, RepoDir) -> Index -> [DiskFile] -> DevOp env FilePresent
 preserveHeadDiskFile env _ chain = do
   let getHeadFile = head <$> traverse (fetchDiskFile env) chain
   (repoFile,_) <- getHeadFile
@@ -96,7 +96,7 @@ preserveHeadDiskFile env _ chain = do
 newHeadPath :: RunDir -> Index -> FilePath
 newHeadPath rundir idx = printf (rundir </> "head-disk-%02d.img") idx
 
-newHeadDiskfile :: (RunDir,RepoDir) -> Index -> [DiskFile] -> DevOp FilePresent
+newHeadDiskfile :: (RunDir,RepoDir) -> Index -> [DiskFile] -> DevOp env FilePresent
 newHeadDiskfile (rundir,repo) idx chain = do
   let path = newHeadPath rundir idx
   let newHeadBackupPath = repo </> (Text.unpack $ diskFileName idx (length chain))
@@ -119,9 +119,9 @@ newQemuVm :: (RunDir,RepoDir)
           -> Index
           -> RAM
           -> Int
-          -> DevOp Interface
+          -> DevOp env Interface
           -> [DiskFile]
-          -> DevOp (Daemon QemuVM)
+          -> DevOp env (Daemon QemuVM)
 newQemuVm env@(rundir,repo) plan idx ram cpuCount mkIface backingChain = do
     let disk = newHeadFromBackingChain (rundir,repo) idx backingChain
     qemuVm env plan idx ram cpuCount mkIface disk
@@ -135,9 +135,9 @@ existingQemuVm :: (RunDir,RepoDir)
                -> Index
                -> RAM
                -> Int
-               -> DevOp Interface
+               -> DevOp env Interface
                -> [DiskFile]
-               -> DevOp (Daemon QemuVM)
+               -> DevOp env (Daemon QemuVM)
 existingQemuVm env@(rundir,repo) plan idx ram cpuCount mkIface backingChain = do
     let disk = savedHeadfromBackingChain (rundir,repo) idx backingChain
     qemuVm env plan idx ram cpuCount mkIface disk
@@ -148,14 +148,18 @@ baseImageQemuVm :: (RunDir,RepoDir)
        -> Index
        -> RAM
        -> Int
-       -> DevOp Interface
-       -> DevOp (BaseImage QemuBase)
-       -> DevOp (Daemon QemuVM)
+       -> DevOp env Interface
+       -> DevOp env (BaseImage (QemuBase env))
+       -> DevOp env (Daemon QemuVM)
 baseImageQemuVm env@(rundir,_) plan idx ram cpuCount mkIface boot = do
     let disk = newDiskFromBaseImage rundir idx boot
     qemuVm env plan idx ram cpuCount mkIface disk
 
-newDiskFromBaseImage :: RunDir -> Index -> DevOp (BaseImage QemuBase) -> DevOp QemuDisk
+newDiskFromBaseImage
+  :: RunDir
+  -> Index
+  -> DevOp env (BaseImage (QemuBase env))
+  -> DevOp env QemuDisk
 newDiskFromBaseImage rundir idx mkBase = do
   let asRepo (FilePresent f) = LocalRepositoryFile f
   let f = asRepo . imagePath <$> mkBase
@@ -168,9 +172,9 @@ qemuVm :: (RunDir,RepoDir)
        -> RAM
        -> Index
        -> Int
-       -> DevOp Interface
-       -> DevOp QemuDisk
-       -> DevOp (Daemon QemuVM)
+       -> DevOp env Interface
+       -> DevOp env QemuDisk
+       -> DevOp env (Daemon QemuVM)
 qemuVm (rundir,_) plan idx ram cpuCount mkIface mkdisk = do
   daemon ("qemu-" <> Text.pack (show idx)) (Just qemuUserKvmGroup) qemux86 qemuCommandArgs $ do
     _ <- traverse deb ["qemu", "qemu-kvm"]
@@ -179,21 +183,21 @@ qemuVm (rundir,_) plan idx ram cpuCount mkIface mkdisk = do
     let ip = fixedIp plan idx
     return (idx, ip, fixedMac plan idx, dhcp, br, tap0, ram, cpuCount, disk)
 
-eth0 :: DevOp Interface
+eth0 :: DevOp env Interface
 eth0 = pure $ PhysicalIface "eth0"
 
-br0 :: DevOp Bridge
+br0 :: DevOp env Bridge
 br0 = fmap fst (bridge "br0" ((,) <$> brctl <*> binIp))
 
-tapN :: Index -> DevOp Tap
+tapN :: Index -> DevOp env Tap
 tapN idx = let tapName = Text.pack (printf "tap%d" idx) in
         fst <$> tap tapName qemuUser tunctl
 
 vmNetwork :: RunDir
           -> Index
           -> AddressPlan
-          -> DevOp Interface
-          -> DevOp (Daemon DHCP, BridgedInterface)
+          -> DevOp env Interface
+          -> DevOp env (Daemon DHCP, BridgedInterface)
 vmNetwork rundir idx plan iface = declare (noop ("~networking: " <> Text.pack (show idx)) "example network config") $ do
   -- enable IP forwarding
   _ <- ipForwarding
@@ -212,7 +216,7 @@ vmNetwork rundir idx plan iface = declare (noop ("~networking: " <> Text.pack (s
 --
 -- Verification is done by ssh-ing in the VM and running the 'echo' command,
 -- hence echo must be available at the remote end.
-controlledQemuVm :: ParasiteLogin -> DevOp (Daemon QemuVM) -> DevOp ControlledHost
+controlledQemuVm :: ParasiteLogin -> DevOp env (Daemon QemuVM) -> DevOp env ControlledHost
 controlledQemuVm login vm = devop fst mkOp $ do
   (Daemon _ _ _ (idx,ip,_,_,_,_,_,_,_)) <- vm
   return (ControlledHost login (Remote ip), idx)

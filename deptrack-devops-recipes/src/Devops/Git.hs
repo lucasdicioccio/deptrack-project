@@ -25,7 +25,7 @@ data GitRepo =
             , gitRepoName :: !Name
             } deriving Show
 
-gitClone :: GitPath -> GitBranch -> DevOp (Binary "git") -> DevOp DirectoryPresent -> DevOp GitRepo
+gitClone :: GitPath -> GitBranch -> DevOp env (Binary "git") -> DevOp env DirectoryPresent -> DevOp env GitRepo
 gitClone path branch mkGit mkDir = devop snd mkOp $ do
   dir <- mkDir
   g <- mkGit

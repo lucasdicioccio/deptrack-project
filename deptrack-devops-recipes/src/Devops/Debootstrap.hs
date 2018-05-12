@@ -61,8 +61,8 @@ allMounts = [ProcFS, SysFS, DevFS]
 -- TODO: the extra mounts should be optional
 debootstrapped :: DebootstrapSuite a
   -> DeboostrapMounts
-  -> DevOp DirectoryPresent
-  -> DevOp Debootstrapped
+  -> DevOp env DirectoryPresent
+  -> DevOp env Debootstrapped
 debootstrapped suite mounts mkTarget = devop fst mkOp $ do
     let args mntdir = [ "--variant", "buildd"
                       , "--arch", "amd64"

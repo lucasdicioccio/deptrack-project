@@ -18,31 +18,30 @@ import           Devops.Debian.Commands    (git)
 import           Devops.Binary
 
 type OS = String
-type EnvDevOp = ReaderT OS (DevOp :: * -> *)
 
-onlyFor :: OS -> EnvDevOp a -> EnvDevOp a
+onlyFor :: OS -> DevOp OS a -> DevOp OS a
 onlyFor x f = do
   asks (==x) >>= guard
   f
 
-localGit :: EnvDevOp (Binary "git")
-localGit = lift $ binary
+localGit :: DevOp OS (Binary "git")
+localGit = binary
 
-debianGit :: EnvDevOp (Binary "git")
-debianGit = onlyFor "debian" $ do
-  lift $ git
+debianGit :: DevOp OS (Binary "git")
+debianGit = onlyFor "debian" $ git
 
-portableGit :: EnvDevOp (Binary "git")
+portableGit :: DevOp OS (Binary "git")
 portableGit =
       debianGit
   <|> localGit
 
 main :: IO ()
 main = do
-    let stages n _ _ = runReaderT n portableGit
+    let stages _ _ _ = void $ portableGit
     let app = App (\(x:y:[]) -> (y, appMethod x))
                   undefined
-                  (\n _ _ -> runReaderT (local (const "debian") $ void portableGit) n)
+                  stages
                   []
+                  (\y -> return y)
     appMain app
 

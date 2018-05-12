@@ -29,6 +29,9 @@ import           System.IO                 (BufferMode (..), hSetBuffering,
                                             stderr, stdout)
 
 
+-- | Assumes a homogeneous env.
+data NoEnv = NoEnv
+
 -- | Stages of execution of this application
 data Stage = Local String Int
            -- ^ The binary was called (e.g., by a human) on the local-host.
@@ -52,10 +55,10 @@ main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
     hSetBuffering stderr LineBuffering
-    let app = App parseStage unparseStage stages [optimizeDebianPackages] :: App Stage
+    let app = App parseStage unparseStage stages [optimizeDebianPackages] (\_ -> return NoEnv) :: App NoEnv Stage
     appMain app
 
-stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp ()
+stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp NoEnv ()
 stages Remote _ _         = devtools
 stages (Local hn key)  self fixCall = void $ do
     -- prepare callbacks for binary calls
@@ -67,6 +70,7 @@ stages (Local hn key)  self fixCall = void $ do
     -- the remotely configured droplet
     remoteContinued root
         (continueConst devtools remoteCallback)
+        NoEnv
         doDroplet
 
 exe               = "deptrack-devops-example-devbox"
@@ -75,7 +79,7 @@ devUser           = mereUser "curry"
 allIps            = "0.0.0.0"
 dropletConfig key = standardDroplet { size = SizeSlug "4gb", configImageSlug = ubuntuXenialSlug, keys = [key] }
 
-parasitedHost :: String -> Int -> DevOp ParasitedHost
+parasitedHost :: String -> Int -> DevOp env ParasitedHost
 parasitedHost dropletName key = do
     let host     = droplet False ((dropletConfig key) { configName = dropletName } )
         built    = build ubuntu16_04 ".." exe
@@ -83,12 +87,12 @@ parasitedHost dropletName key = do
         resolved = resolveRef doref host
     parasite root (buildOutput built) resolved
 
-devtools :: DevOp ()
+devtools :: DevOp NoEnv ()
 devtools = void $ do
     packages
     dotFiles devUser (dotFilesDir devUser)
 
-packages :: DevOp ()
+packages :: DevOp env ()
 packages = void $ do
     deb "git-core"
     deb "emacs"
@@ -96,14 +100,14 @@ packages = void $ do
     deb "graphviz"
     deb "haskell-stack"
 
-dotFilesDir :: DevOp User -> DevOp DirectoryPresent
+dotFilesDir :: DevOp env User -> DevOp env DirectoryPresent
 dotFilesDir mkUsr = do
     User u <- mkUsr
     let dotfilesDir = userDirectory "dotfiles" mkUsr
         userAndGroup = (,Group u) <$> mkUsr
     directoryPermissions userAndGroup dotfilesDir
 
-dotFiles :: DevOp User -> DevOp DirectoryPresent -> DevOp [FilePresent]
+dotFiles :: DevOp env User -> DevOp env DirectoryPresent -> DevOp env [FilePresent]
 dotFiles mkUsr dotFiles = do
     let repo = gitClone "https://github.com/abailly/dotfiles" "master" git dotFiles
     forM [ ".tmux.conf"
@@ -112,13 +116,13 @@ dotFiles mkUsr dotFiles = do
          , ".bash_profile"
          ] $ symlinkFile mkUsr repo
 
-symlinkFile :: DevOp User -> DevOp GitRepo -> FilePath -> DevOp FilePresent
+symlinkFile :: DevOp env User -> DevOp env GitRepo -> FilePath -> DevOp env FilePresent
 symlinkFile mkUser mkRepo filepath = do
     User u          <- mkUser
     let home = homeDirPath u
     fst <$> fileLink (home </> filepath) (preExistingFileIn mkRepo filepath)
 
-preExistingFileIn :: DevOp GitRepo -> FilePath -> DevOp FilePresent
+preExistingFileIn :: DevOp env GitRepo -> FilePath -> DevOp env FilePresent
 preExistingFileIn mkRepo fp = do
     GitRepo dir _ _ <- mkRepo
     return $ FilePresent (getDirectoryPresentPath dir </> fp)

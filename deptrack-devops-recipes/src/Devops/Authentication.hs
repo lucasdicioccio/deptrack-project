@@ -30,14 +30,14 @@ data SSHSignedUserKey = SSHSignedUserKey { signedKeyPair     :: !SSHKeyPair
                                          , signedCertificate :: !CertificateFile
                                          }
 
-preExistingKeyPair :: FilePath -> DevOp SSHKeyPair
+preExistingKeyPair :: FilePath -> DevOp env SSHKeyPair
 preExistingKeyPair privPath = do
     !priv <- preExistingFile privPath
     !pub <- preExistingFile (privPath <> ".pub")
     return $ SSHKeyPair (Private priv) (Public pub)
 
 -- | Creates an SSH RSA-2048-bit key.
-sshKeyPair :: DevOp DirectoryPresent -> Name -> DevOp (SSHKeyPair)
+sshKeyPair :: DevOp env DirectoryPresent -> Name -> DevOp env (SSHKeyPair)
 sshKeyPair dir name = declare (noop "ssh-key" $ "ssh-key:" <> name) $ do
   (DirectoryPresent dirpath) <- dir
   let privKeyPath = dirpath </> Text.unpack name
@@ -51,10 +51,10 @@ sshKeyPair dir name = declare (noop "ssh-key" $ "ssh-key:" <> name) $ do
                      , "-f", privKeyPath
                      ]
 
-sshCA :: DevOp SSHKeyPair -> DevOp SSHCertificateAuthority
+sshCA :: DevOp env SSHKeyPair -> DevOp env SSHCertificateAuthority
 sshCA = fmap SSHCertificateAuthority
 
-signKey :: DevOp SSHCertificateAuthority -> DevOp SSHKeyPair -> DevOp SSHSignedUserKey
+signKey :: DevOp env SSHCertificateAuthority -> DevOp env SSHKeyPair -> DevOp env SSHSignedUserKey
 signKey ca toSign = track mkOp $ do
   pair@(SSHKeyPair (Private (FilePresent notSignedKeyPath)) _) <- toSign
   let certPath = notSignedKeyPath <> "-cert.pub"
@@ -70,7 +70,7 @@ signKey ca toSign = track mkOp $ do
 
 data AuthorizedRemote = AuthorizedRemote !ControlledHost !SSHSignedUserKey
 
-authorizedRemote :: DevOp SSHSignedUserKey -> DevOp ControlledHost -> DevOp AuthorizedRemote
+authorizedRemote :: DevOp env SSHSignedUserKey -> DevOp env ControlledHost -> DevOp env AuthorizedRemote
 authorizedRemote signedKey host = track mkOp $ do
   let privkey = getPrivate . privateKey . signedKeyPair <$> signedKey
   let pubkey  = getPublic . publicKey . signedKeyPair <$> signedKey
@@ -107,9 +107,9 @@ buildAuthorizedKeysContent aks = do
 -- | Locally builds and sends a .ssh/authorized_keys file for a given user.
 -- TODO: explore ways to download public keys from the remote
 sendAuthorizedKeys :: FilePath
-  -> DevOp (AuthorizedKeys)
-  -> DevOp ControlledHost
-  -> DevOp (FileTransferred)
+  -> DevOp env (AuthorizedKeys)
+  -> DevOp env ControlledHost
+  -> DevOp env (FileTransferred)
 sendAuthorizedKeys path keys host = do
   let buildContent = ioFile path (buildAuthorizedKeysContent <$> keys)
   (ControlledHost login _) <- host

@@ -25,9 +25,11 @@ import           Devops.Postgre (PGUser(..), PGDatabase(..), pgUser, pgDatabase,
 import           Devops.Service (daemon, Daemon, CommandArgs, DaemonConfig)
 
 main :: IO ()
-main = getArgs >>= simpleMain devtools [optimizeDebianPackages]
+main = do
+    args <- getArgs
+    simpleMain devtools [optimizeDebianPackages] args ()
   where
-    devtools :: DevOp ()
+    devtools :: DevOp env ()
     devtools = void $ do
         let db = pgDatabase "gloubyboulga" (pgUser "casimir" "lileauxenfantsglauquissime")
         let cfg = fileContent "/home/user/postgrest.cfg" (convertString . postgrestconfig <$> db)
@@ -39,12 +41,12 @@ type instance DaemonConfig Postgrest = FilePresent
 postgrestCommandArgs :: DaemonConfig Postgrest -> CommandArgs
 postgrestCommandArgs (FilePresent path) = [path]
 
-postgrestService :: DevOp FilePresent -> DevOp (Daemon Postgrest)
+postgrestService :: DevOp env FilePresent -> DevOp env (Daemon Postgrest)
 postgrestService fp =
     daemon "postgrest" (Just ((,) <$> mereUser "user" <*> group "user")) (postgrest "/home/user/.local/bin") postgrestCommandArgs fp
 
 
-postgrestProject :: DevOp (StackProject "postgrest")
+postgrestProject :: DevOp env (StackProject "postgrest")
 postgrestProject = fmap fst $ do
     let url = "https://github.com/begriffs/postgrest.git" 
     let branch = "master"
@@ -53,7 +55,7 @@ postgrestProject = fmap fst $ do
 
 instance HasBinary (StackProject "postgrest") "postgrest" where
 
-postgrest :: FilePath -> DevOp (Binary "postgrest")
+postgrest :: FilePath -> DevOp env (Binary "postgrest")
 postgrest installdir = stackInstall installdir postgrestProject 
 
 postgrestconfig :: PGDatabase -> String

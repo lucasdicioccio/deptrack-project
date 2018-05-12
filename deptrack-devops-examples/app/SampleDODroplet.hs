@@ -21,7 +21,7 @@ import           System.Environment        (getArgs)
 
 theDroplet dropletName = standardDroplet { configName = dropletName, keys = [2118791] }
 
-sampleDONode :: Bool -> String -> DevOp ParasitedHost
+sampleDONode :: Bool -> String -> DevOp env ParasitedHost
 sampleDONode debug dropletName =
   let exe      = "deptrack-devops-example-do-droplet"
       host     = droplet debug $ theDroplet dropletName
@@ -36,6 +36,6 @@ main :: IO ()
 main = do
   host:args <- getArgs
   case args of
-    "-v":args' -> simpleMain (sampleDONode True host)  [optimizeDebianPackages] args'
-    args'      -> simpleMain (sampleDONode False host)  [optimizeDebianPackages] args'
+    "-v":args' -> simpleMain (sampleDONode True host)  [optimizeDebianPackages] args' ()
+    args'      -> simpleMain (sampleDONode False host)  [optimizeDebianPackages] args' ()
 

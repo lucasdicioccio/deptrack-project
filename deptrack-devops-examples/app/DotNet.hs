@@ -19,22 +19,24 @@ import           Devops.Debian.User
 import qualified Devops.Debian.Commands as Cmd
 
 main :: IO ()
-main = getArgs >>= simpleMain helloDaemon [optimizeDebianPackages]
+main = do
+    args <- getArgs
+    simpleMain helloDaemon [optimizeDebianPackages] args ()
 
-daemonGroup :: DevOp Group
+daemonGroup :: DevOp env Group
 daemonGroup = group "user"
 
-daemonUser :: DevOp User
+daemonUser :: DevOp env User
 daemonUser = user "user" daemonGroup noExtraGroup
 
-helloDaemon :: DevOp (Daemon (App "dotnet" "hello-world"))
+helloDaemon :: DevOp env (Daemon (App "dotnet" "hello-world"))
 helloDaemon = let usrgrp = (,) <$> daemonUser <*> daemonGroup in
     dotnetDaemon "dotnet-daemon-example" helloApp usrgrp
 
 helloURL :: GitUrl
 helloURL = "https://github.com/microservices-aspnetcore/hello-world.git"
 
-helloApp :: DevOp (App "dotnet" "hello-world")
+helloApp :: DevOp env (App "dotnet" "hello-world")
 helloApp =
     dotnetApp "hello-world" (gitDir <$> repo)
   where

@@ -12,7 +12,7 @@ import           Devops.Utils
 
 -- | Extract a given archive into a directory, stripping some number of leading components
 -- Returns the target directory
-untar :: Int -> DevOp FilePresent -> DevOp DirectoryPresent -> DevOp DirectoryPresent
+untar :: Int -> DevOp env FilePresent -> DevOp env DirectoryPresent -> DevOp env DirectoryPresent
 untar strip archiveFile targetDir = devop snd mkOp $ do
     c <- tar
     f <- archiveFile

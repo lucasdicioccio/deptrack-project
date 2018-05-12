@@ -189,21 +189,21 @@ revLocalZone plan =
 
 mkBind9ConfigFile :: RunDir
                   -> AddressPlan
-                  -> DevOp DirectoryPresent
-                  -> DevOp Bind9Configuration
-                  -> DevOp FilePresent
+                  -> DevOp env DirectoryPresent
+                  -> DevOp env Bind9Configuration
+                  -> DevOp env FilePresent
 mkBind9ConfigFile rundir plan mkRoot mkCfg = do
   (DirectoryPresent bind9dir) <- mkRoot
   let fp = fmap snd $ fileContent (bind9dir </> "bind9.conf") (convertString . dnsResolverConfiguration rundir plan <$> mkCfg)
   filePermissions bind9Owner fp
 
-mkBind9ZoneFile :: RunDir -> DevOp DirectoryPresent -> DevOp Zone -> DevOp (FileContent, FilePresent)
+mkBind9ZoneFile :: RunDir -> DevOp env DirectoryPresent -> DevOp env Zone -> DevOp env (FileContent, FilePresent)
 mkBind9ZoneFile rundir mkRoot mkZone = do
   _ <- mkRoot
   zone <- mkZone
   fileContent (zoneFilePath rundir zone) (convertString . zoneDataConfiguration <$> mkZone)
 
-mkBind9ZoneFiles :: RunDir -> DevOp DirectoryPresent -> DevOp [Zone] -> DevOp [FilePresent]
+mkBind9ZoneFiles :: RunDir -> DevOp env DirectoryPresent -> DevOp env [Zone] -> DevOp env [FilePresent]
 mkBind9ZoneFiles rundir mkRoot mkZones = do
   let mkOne zone = fmap snd $ mkBind9ZoneFile rundir mkRoot (pure zone)
   zones <- mkZones
@@ -218,16 +218,16 @@ dnsResolverCommandArgs (User u,FilePresent path,_) = [
   , "-c", path  -- configfile
   ]
 
-bind9Group :: DevOp Group
+bind9Group :: DevOp env Group
 bind9Group = group "dnsuser"
 
-bind9User :: DevOp User
+bind9User :: DevOp env User
 bind9User = user "dnsuser" bind9Group (return [])
 
-bind9Owner :: DevOp Ownership
+bind9Owner :: DevOp env Ownership
 bind9Owner = (,) <$> bind9User <*> bind9Group
 
-dnsResolver :: RunDir -> AddressPlan -> DevOp DnsForwarder -> DevOp (Daemon DnsResolver)
+dnsResolver :: RunDir -> AddressPlan -> DevOp env DnsForwarder -> DevOp env (Daemon DnsResolver)
 dnsResolver rundir plan mkForwarder = daemon "bind9" Nothing bind9 dnsResolverCommandArgs $ do
   let config = fmap (staticConfig plan) mkForwarder
   let bind9dir = directoryPermissions bind9Owner
@@ -245,10 +245,10 @@ port53 :: Port DnsService
 port53 = 53
 
 -- | One of the Google PublicDNS resolver IP address.
-googlePublicDns :: DevOp DnsForwarder
+googlePublicDns :: DevOp env DnsForwarder
 googlePublicDns = Remoted <$> existingRemote "8.8.4.4" <*> pure (Listening port53 DnsService)
 
-apparmorConfig :: DevOp DirectoryPresent -> DevOp FilePresent
+apparmorConfig :: DevOp env DirectoryPresent -> DevOp env FilePresent
 apparmorConfig mkDir = do
     (DirectoryPresent pathDir) <- mkDir
     let apparmorConfigPath = "/etc/apparmor.d/local/usr.sbin.named"

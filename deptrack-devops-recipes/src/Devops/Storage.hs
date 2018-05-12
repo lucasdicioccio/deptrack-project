@@ -43,21 +43,21 @@ blindRemoveDir path = removeDirectory path
   `catch` (\ (e :: IOException) -> print $ "exception while removing directory " ++ path ++ ": " ++ show e)
 
 -- | states that a file pre-exists
-preExistingFile :: FilePath -> DevOp FilePresent
+preExistingFile :: FilePath -> DevOp env FilePresent
 preExistingFile path =
   let mkop = noop ("file-exists: " <> Text.pack path)
                   ("ensures that " <> Text.pack path <> " is present.")
   in declare mkop (pure $ FilePresent path)
 
 -- | states that a given file must be present in a local repository
-localRepositoryFile :: FilePath -> DevOp RepositoryFile
+localRepositoryFile :: FilePath -> DevOp env RepositoryFile
 localRepositoryFile path =
   let mkop = noop ("file-exists: " <> Text.pack path)
                 ("ensures that " <> Text.pack path <> " is present.")
   in declare mkop (pure $ LocalRepositoryFile path)
 
 -- | generates a directory recursively
-directory :: FilePath -> DevOp DirectoryPresent
+directory :: FilePath -> DevOp env DirectoryPresent
 directory path =
   let mkOp _ = buildOp ("directory-exists: " <> Text.pack path)
                        ("non-recursively builds " <> Text.pack path)
@@ -67,7 +67,7 @@ directory path =
                        noAction
   in devop id mkOp (pure $ DirectoryPresent path)
 
-subdirectory :: DevOp DirectoryPresent -> FilePath -> DevOp DirectoryPresent
+subdirectory :: DevOp env DirectoryPresent -> FilePath -> DevOp env DirectoryPresent
 subdirectory parent path = devop id mkOp $ do
     (DirectoryPresent p) <- parent
     return (DirectoryPresent $ p </> path)
@@ -81,7 +81,7 @@ subdirectory parent path = devop id mkOp $ do
                      noAction
 
 -- | copies a file from an origin repository
-fileCopy :: DevOp FilePath -> DevOp RepositoryFile -> DevOp (RepositoryFile, FilePresent)
+fileCopy :: DevOp env FilePath -> DevOp env RepositoryFile -> DevOp env (RepositoryFile, FilePresent)
 fileCopy mkPath mkSrc = devop fst mkop $ do
     cp <- Cmd.cp
     sync <- Cmd.sync
@@ -98,7 +98,7 @@ fileCopy mkPath mkSrc = devop fst mkop $ do
                       (blindRemoveLink path)
                       noAction
 
-tarDirectory :: FilePath -> DevOp DirectoryPresent -> DevOp RepositoryFile
+tarDirectory :: FilePath -> DevOp env DirectoryPresent -> DevOp env RepositoryFile
 tarDirectory rpath src = devop fst mkOp $ do
     dir <- src
     tar <- Cmd.tar
@@ -115,7 +115,7 @@ tarDirectory rpath src = devop fst mkOp $ do
                     noAction
 
 -- | backup a file at turndown
-turndownfileBackup :: FilePath -> DevOp FilePresent -> DevOp (RepositoryFile, FilePresent)
+turndownfileBackup :: FilePath -> DevOp env FilePresent -> DevOp env (RepositoryFile, FilePresent)
 turndownfileBackup rpath src = devop fst mkOp $ do
     file <- src
     cp <- Cmd.cp
@@ -132,7 +132,7 @@ turndownfileBackup rpath src = devop fst mkOp $ do
                     noAction
 
 -- | Backup a file at turnup.
-turnupfileBackup :: FilePath -> DevOp FilePresent -> DevOp (RepositoryFile, FilePresent)
+turnupfileBackup :: FilePath -> DevOp env FilePresent -> DevOp env (RepositoryFile, FilePresent)
 turnupfileBackup rpath src = devop fst mkOp $ do
     file <- src
     cp <- Cmd.cp
@@ -149,7 +149,7 @@ turnupfileBackup rpath src = devop fst mkOp $ do
                     noAction
 
 -- | Links a file from an originally present file.
-fileLink :: FilePath -> DevOp FilePresent -> DevOp (FilePresent, FileLinked)
+fileLink :: FilePath -> DevOp env FilePresent -> DevOp env (FilePresent, FileLinked)
 fileLink path mkSrc = devop id mkop $ do
     x@(FilePresent srcPath) <- mkSrc
     return (x, FileLinked srcPath path Nothing)
@@ -168,9 +168,9 @@ fileLink path mkSrc = devop id mkop $ do
 -- otherwise there is a risk of not cleaning-up correctly.
 generatedFile :: Typeable a
               => FilePath
-              -> DevOp (Binary a) -- ^ binary to build
-              -> DevOp [String] -- ^ arguments to binary
-              -> DevOp (Binary a, [String], FilePresent)
+              -> DevOp env (Binary a) -- ^ binary to build
+              -> DevOp env [String] -- ^ arguments to binary
+              -> DevOp env (Binary a, [String], FilePresent)
 generatedFile path mkBinary mkArgs = devop fst mkOp $ do
     _ <- directory (takeDirectory path)
     args <- mkArgs
@@ -193,8 +193,8 @@ checkFilePresent = fmap fromBool . fileExist
 
 -- | Generates a file with an IO-action.
 ioFile :: FilePath
-       -> DevOp (IO FileContent)
-       -> DevOp FilePresent
+       -> DevOp env (IO FileContent)
+       -> DevOp env FilePresent
 ioFile path mkIO = devop fst mkOp $ do
     action <- mkIO
     sync <- Cmd.sync
@@ -209,5 +209,5 @@ ioFile path mkIO = devop fst mkOp $ do
                           (blindRemoveLink path)
                           noAction
 
-binaryPresent :: DevOp (Binary a) -> DevOp FilePresent
+binaryPresent :: DevOp env (Binary a) -> DevOp env FilePresent
 binaryPresent = fmap (FilePresent . binaryPath)

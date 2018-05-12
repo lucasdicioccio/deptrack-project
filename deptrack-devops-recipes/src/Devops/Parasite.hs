@@ -39,7 +39,7 @@ data ParasitedHost = ParasitedHost !FilePath !ParasiteLogin !IpNetString
 data FileTransferred = FileTransferred !FilePath !Remote
 
 -- | Assert control on a remote.
-control :: ParasiteLogin -> DevOp Remote -> DevOp ControlledHost
+control :: ParasiteLogin -> DevOp env Remote -> DevOp env ControlledHost
 control login mkRemote = devop fst mkOp $ do
     r@(Remote ip) <- mkRemote
     return ((ControlledHost login r), ip)
@@ -55,7 +55,7 @@ control login mkRemote = devop fst mkOp $ do
 --
 -- The remote binary will take precedence in 'BinaryCall' from 'remoted'
 -- 'Continued' argument.
-parasite :: FilePath -> DevOp ControlledHost -> DevOp ParasitedHost
+parasite :: FilePath -> DevOp env ControlledHost -> DevOp env ParasitedHost
 parasite selfPath mkHost = track mkOp $ do
     (ControlledHost login _) <- mkHost
     let selfBinary = preExistingFile selfPath
@@ -66,14 +66,15 @@ parasite selfPath mkHost = track mkOp $ do
     mkOp (ParasitedHost _ _ ip) = noop ("parasited-host: " <> ip)
                                        ("copies itself after in a parasite")
 
--- | Turnup a given DevOp at a given remote.
+-- | Turnup a given DevOp env at a given remote.
 remoted :: Typeable a
-        => Continued a
-        -> DevOp ParasitedHost
-        -> DevOp (Remoted (Maybe a))
-remoted cont host = devop fst mkOp $ do
+        => Continued env a
+        -> env
+        -> DevOp env ParasitedHost
+        -> DevOp env (Remoted (Maybe a))
+remoted cont env host = devop fst mkOp $ do
     c <- ssh
-    let obj = eval cont
+    let obj = eval env cont
     let (BinaryCall _ fArgs) = callback cont
     let args = fArgs (TurnUp Concurrently)
     (ParasitedHost rpath login ip) <- host
@@ -95,10 +96,10 @@ remoted cont host = devop fst mkOp $ do
       ] ++ args
 
 -- | A file transferred at a remote path.
-fileTransferred :: DevOp FilePresent
+fileTransferred :: DevOp env FilePresent
                 -> FilePath
-                -> DevOp ControlledHost
-                -> DevOp (FileTransferred)
+                -> DevOp env ControlledHost
+                -> DevOp env (FileTransferred)
 fileTransferred mkFp path mkHost = devop fst mkOp $ do
     c <- scp
     f <- mkFp
@@ -123,7 +124,7 @@ fileTransferred mkFp path mkHost = devop fst mkOp $ do
 -- Remote storage mounting.
 data SshFsMountedDir = SshFsMountedDir !FilePath
 
-sshMounted :: DevOp DirectoryPresent -> DevOp ControlledHost -> DevOp (SshFsMountedDir)
+sshMounted :: DevOp env DirectoryPresent -> DevOp env ControlledHost -> DevOp env (SshFsMountedDir)
 sshMounted mkPath mkHost = devop fst mkOp $ do
     binmount <- mount
     sshmount <- sshfs
@@ -150,7 +151,7 @@ sshMounted mkPath mkHost = devop fst mkOp $ do
     hasMountLine :: FilePath -> String -> Bool
     hasMountLine path dat = elem path $ concatMap words $ lines dat
 
-sshFileCopy :: DevOp FilePresent -> DevOp (SshFsMountedDir) -> DevOp (RepositoryFile, FilePresent)
+sshFileCopy :: DevOp env FilePresent -> DevOp env (SshFsMountedDir) -> DevOp env (RepositoryFile, FilePresent)
 sshFileCopy mkLocal mkDir = do
     (FilePresent loc) <- mkLocal
     let rpath = (\(SshFsMountedDir dir) -> dir </> takeBaseName loc) <$> mkDir

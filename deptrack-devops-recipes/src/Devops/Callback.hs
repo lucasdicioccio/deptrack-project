@@ -38,27 +38,27 @@ binaryCall = BinaryCall
 --
 -- This object is useful to capture DevOp that must be run on a remote or
 -- containerized machine.
-data Continued a = forall obj. Continued {
+data Continued env a = forall obj. Continued {
     _arg        :: obj
-  , _mkDevOp    :: obj -> DevOp a
+  , _mkDevOp    :: obj -> DevOp env a
   , _mkCallback :: obj -> BinaryCall
   }
 
 -- | Constructs a 'Continued' object.
 continue :: obj
          -- ^ A value.
-         -> (obj -> DevOp a)
+         -> (obj -> DevOp env a)
          -- ^ A function to build a DevOp.
          -> (obj -> BinaryCall)
          -- ^ A function to build a suitable callback.
-         -> Continued a
+         -> Continued env a
 continue = Continued
 
 -- | Constructs a 'Continued' from a DevOp with no free variable and its
 -- equivalent BinaryCall.
 --
 -- This function's BinaryCall should respect the same contract as 'continue'.
-continueConst :: DevOp a -> BinaryCall -> Continued a
+continueConst :: DevOp env a -> BinaryCall -> Continued env a
 continueConst tgt call =
     let obj = ()
         fDevop () = tgt
@@ -66,9 +66,9 @@ continueConst tgt call =
     in continue obj fDevop fCall
 
 -- | Observes the result of a Continued object.
-eval :: Continued a -> Maybe a
-eval (Continued arg f _) = runDevOp $ f arg
+eval :: env -> Continued env a -> Maybe a
+eval env (Continued arg f _) = runDevOp env $ f arg
 
 -- | Constructs a 'BinaryCall' that will call-back the Continued object.
-callback :: Continued a -> BinaryCall
+callback :: Continued env a -> BinaryCall
 callback (Continued arg _ g) = g arg

@@ -19,35 +19,35 @@ trusty = "trusty"
 wheezy = "wheezy"
 xenial = "xenial"
 
-fpComplete :: DevOp DebianRepository
+fpComplete :: DevOp env DebianRepository
 fpComplete = do
     let url = "http://download.fpcomplete.com/debian"
     let repo = sourceRepository "fpco" url (Right (wheezy,"main"))
     let keys = aptGetKeys "keyserver.ubuntu.com" "575159689BEFB442"
     DebianRepository <$> repo <*> keys
 
-rCran :: DevOp DebianRepository
+rCran :: DevOp env DebianRepository
 rCran = do
     let url = "http://cran.cnr.berkeley.edu/bin/linux/ubuntu"
     let repo = sourceRepository "r-cran" url (Left $ Text.unpack $ trusty<>"/")
     let keys = aptGetKeys "keyserver.ubuntu.com" "E084DAB9"
     DebianRepository <$> repo <*> keys
 
-jenkins :: DevOp DebianRepository
+jenkins :: DevOp env DebianRepository
 jenkins = do
   let url = "http://pkg.jenkins.io/debian-stable"
   let repo = sourceRepository "jenkins" url (Left $ "binary/")
   let keys = aptGetKeys "keyserver.ubuntu.com" "D50582E6"
   DebianRepository <$> repo <*> keys
 
-dotnet :: DevOp DebianRepository
+dotnet :: DevOp env DebianRepository
 dotnet = do
     let url = "https://apt-mo.trafficmanager.net/repos/dotnet-release/"
     let repo = sourceRepository "dotnet" url (Right (xenial,"main"))
     let keys = aptGetKeys "keyserver.ubuntu.com" "417A0893"
     DebianRepository <$> repo <*> keys
 
-docker :: DevOp DebianRepository
+docker :: DevOp env DebianRepository
 docker = do
     let url = "https://apt.dockerproject.org/repo"
     let repo = sourceRepository "docker" url (Right ("ubuntu-"<>xenial,"main"))
@@ -58,7 +58,7 @@ sourceRepository ::
      Name
   -> AptGetRepositoryUrl
   -> Either FilePath (Name,String)
-  -> DevOp (FilePresent)
+  -> DevOp env (FilePresent)
 sourceRepository basename url distrospec =
   let lineTail = case distrospec of
              Left rpath          -> [convertString rpath]

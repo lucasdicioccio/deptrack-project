@@ -30,7 +30,7 @@ run a =
       path = d </> convertString (appName a)  <> ".csproj"
   in [ "run" , "-p", path ]
 
-dotnetApp :: KnownSymbol x => Name -> DevOp DirectoryPresent -> DevOp (App "dotnet" x)
+dotnetApp :: KnownSymbol x => Name -> DevOp env DirectoryPresent -> DevOp env (App "dotnet" x)
 dotnetApp name repo = devop id mkOp $ do
     application name Cmd.dotnet repo
   where
@@ -45,8 +45,8 @@ dotnetApp name repo = devop id mkOp $ do
 
 dotnetRun :: KnownSymbol x
           => Name
-          -> DevOp (App "dotnet" x)
-          -> DevOp (Running (App "dotnet" x))
+          -> DevOp env (App "dotnet" x)
+          -> DevOp env (Running (App "dotnet" x))
 dotnetRun name mkApp = devop id mkOp $ do
     a <- mkApp
     return $ Running a
@@ -62,8 +62,8 @@ dotnetRun name mkApp = devop id mkOp $ do
 
 dotnetDaemon :: KnownSymbol x
              => Name
-             -> DevOp (App "dotnet" x)
-             -> DevOp (User, Group)
-             -> DevOp (Daemon (App "dotnet" x))
+             -> DevOp env (App "dotnet" x)
+             -> DevOp env (User, Group)
+             -> DevOp env (Daemon (App "dotnet" x))
 dotnetDaemon name mkApp mkUserGroup =
     daemonizeApp name mkApp run (Just mkUserGroup)

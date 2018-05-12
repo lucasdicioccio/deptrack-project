@@ -38,7 +38,10 @@ data RepositoryFile = LocalRepositoryFile !FilePath
 
 
 -- | Generates the content of a File
-fileContent :: FilePath -> DevOp FileContent -> DevOp (FileContent, FilePresent)
+fileContent
+  :: FilePath
+  -> DevOp env FileContent
+  -> DevOp env (FileContent, FilePresent)
 fileContent path mkContent = devop id mkop $ do
     !content <- mkContent
     return (content, FilePresent path)

@@ -34,6 +34,8 @@ import           Devops.Debian.User
 
 --------------------------------------------------------------------
 
+data NoEnv = NoEnv
+
 -- | Represents the main entry point in our function.
 data Stage =
     LocalHost
@@ -60,7 +62,7 @@ unparseStage stage m = case stage of
 
 main :: IO ()
 main = do
-    let app = App parseStage unparseStage stages [optimizeDebianPackages] :: App Stage
+    let app = App parseStage unparseStage stages [optimizeDebianPackages] (\_ -> return NoEnv) :: App NoEnv Stage
     appMain app
 
 
@@ -69,7 +71,7 @@ tempdir, bootstrapBin :: FilePath
 tempdir = "/opt/dockbootstrap-website"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops-website"
 
-stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp ()
+stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp NoEnv ()
 stages InChroot _ _           = chrootImageContent
 stages InDocker _ _           = void $ dockerDevOpContent
 stages LocalHost self fixCall = void $ do
@@ -88,6 +90,7 @@ stages LocalHost self fixCall = void $ do
     let website = dockerizedDaemon "deptrack-devops-example-dockerized-website"
                                    image
                                    (continueConst dockerDevOpContent dockerCallback)
+                                   NoEnv
                                    id -- no modifications before start
 
     -- the locally-running reverse proxy
@@ -99,32 +102,35 @@ stages LocalHost self fixCall = void $ do
             let ws = (fmap . fmap) nginxAsWebService nginx
             mainNginxProxy $ fmap exposed2listening ws
 
-    delayedEval (delay (resolveDockerRemote website) localReverseProxy) evalDelay
+    delayedEval
+        (delay (resolveDockerRemote website) localReverseProxy)
+        evalDelay
+        NoEnv
   where
-    miniMain c ys = simpleMain c [optimizeDebianPackages] ys
+    miniMain c ys = simpleMain c [optimizeDebianPackages] ys NoEnv
     baseImageConfig = BaseImageConfig bootstrapBin xenial
 
-mainNginxProxy :: Remoted (Listening WebService) -> DevOp (Exposed (Daemon Nginx))
+mainNginxProxy :: Remoted (Listening WebService) -> DevOp env (Exposed (Daemon Nginx))
 mainNginxProxy upstream = do
     let cfgdir = "/opt/rundir"
     let cfg = proxyPass cfgdir "dicioccio.fr" (return upstream)
     reverseProxy cfgdir [cfg]
 
-chrootImageContent :: DevOp ()
+chrootImageContent :: DevOp env ()
 chrootImageContent = void $ do
     deb "git-core"
 
-dockerDevOpContent :: DevOp (Exposed (Daemon Nginx))
+dockerDevOpContent :: DevOp env (Exposed (Daemon Nginx))
 dockerDevOpContent =
     reverseProxy "/opt/rundir" nginxConfigs
 
-nginxConfigs :: [DevOp NginxServerConfig]
+nginxConfigs :: [DevOp env NginxServerConfig]
 nginxConfigs = [
     site "dicioccio.fr" "https://github.com/lucasdicioccio/site"
   , site "lubian.info" "https://github.com/lubian/site"
   ]
 
-site :: HostName -> GitUrl -> DevOp NginxServerConfig
+site :: HostName -> GitUrl -> DevOp env NginxServerConfig
 site host url = StaticSite.gitCloned repo
   where
     repo = gitClone url "master" Cmd.git (userDirectory (convertString host) user)

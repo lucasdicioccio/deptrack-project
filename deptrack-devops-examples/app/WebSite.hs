@@ -16,18 +16,20 @@ import           Devops.Nginx
 import qualified Devops.StaticSite as StaticSite
 
 main :: IO ()
-main = getArgs >>= simpleMain webSites [optimizeDebianPackages]
+main = do
+    args <- getArgs
+    simpleMain webSites [optimizeDebianPackages] args ()
   where
-    webSites :: DevOp ()
+    webSites :: DevOp env ()
     webSites = void $ reverseProxy "/opt/rundir" nginxConfigs
 
-nginxConfigs :: [DevOp NginxServerConfig]
+nginxConfigs :: [DevOp env NginxServerConfig]
 nginxConfigs = [
     site "dicioccio.fr" "https://github.com/lucasdicioccio/site"
   , site "lubian.info" "https://github.com/lubian/site"
   ]
 
-site :: HostName -> GitUrl -> DevOp NginxServerConfig
+site :: HostName -> GitUrl -> DevOp env NginxServerConfig
 site host url = StaticSite.gitCloned repo
   where
     repo = gitClone url "master" Cmd.git (userDirectory (convertString host) user)

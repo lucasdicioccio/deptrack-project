@@ -33,7 +33,7 @@ type GroupName = Text
 newtype User = User { userName :: UserName }
 newtype Group = Group { groupName :: GroupName }
 
-group :: GroupName -> DevOp Group
+group :: GroupName -> DevOp env Group
 group n = devop snd mkop $ do
     gadd <- groupadd
     gdel <- groupdel
@@ -47,19 +47,19 @@ group n = devop snd mkop $ do
                      (blindRun gdel [convertString n] "")
                      noAction
 
-preExistingGroup :: GroupName -> DevOp Group
+preExistingGroup :: GroupName -> DevOp env Group
 preExistingGroup n = pure $ Group n
 
-preExistingUser :: UserName -> DevOp User
+preExistingUser :: UserName -> DevOp env User
 preExistingUser n = pure $ User n
 
-noExtraGroup :: DevOp [Group]
+noExtraGroup :: DevOp env [Group]
 noExtraGroup = pure []
 
 raisesNot :: IO a -> IO CheckResult
 raisesNot act = (act >> return Success) `catch` (\(e::IOException) -> return $ Failure (show e))
 
-user :: UserName -> DevOp Group -> DevOp [Group] -> DevOp User
+user :: UserName -> DevOp env Group -> DevOp env [Group] -> DevOp env User
 user n mkBaseGroup mkGroups = devop snd mkop $ do
   uadd <- useradd
   udel <- userdel
@@ -82,13 +82,13 @@ uaddParams grp grps n = ["-M", "-G", convertString $ extraGroups grps,"-c", "use
 
 type Ownership = (User,Group)
 
-filePermissions :: DevOp Ownership -> DevOp FilePresent -> DevOp FilePresent
+filePermissions :: DevOp env Ownership -> DevOp env FilePresent -> DevOp env FilePresent
 filePermissions mkOwner mkFile = fmap fst $ track (uncurry mkFilePathPermissionOp) $ do
   (User usr, Group grp) <- mkOwner
   fp@(FilePresent path) <- mkFile
   return (fp, (path,usr,grp))
 
-directoryPermissions :: DevOp Ownership -> DevOp DirectoryPresent -> DevOp DirectoryPresent
+directoryPermissions :: DevOp env Ownership -> DevOp env DirectoryPresent -> DevOp env DirectoryPresent
 directoryPermissions mkOwner mkDir = fmap fst $ track (uncurry mkFilePathPermissionOp) $ do
   (User usr, Group grp) <- mkOwner
   dir@(DirectoryPresent path) <- mkDir
@@ -109,10 +109,10 @@ chownFile username groupname path = do
             grp <- getGroupEntryForName (convertString groupname)
             setOwnerAndGroup path (userID usr) (groupID grp)
 
-mereUser :: Name -> DevOp User
+mereUser :: Name -> DevOp env User
 mereUser name = user name (group name) noExtraGroup
 
-userDirectory :: FilePath -> DevOp User -> DevOp DirectoryPresent
+userDirectory :: FilePath -> DevOp env User -> DevOp env DirectoryPresent
 userDirectory subpath mkUser = do
   -- just extract the name of the user, fine to not track here because we
   -- re-inject the dep inside directoryPermissions

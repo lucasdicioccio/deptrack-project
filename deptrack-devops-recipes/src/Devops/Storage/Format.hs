@@ -32,7 +32,7 @@ data Partition = Partition {
 newtype Schema = Schema { getPartitions :: [ Partition ] }
 
 partition :: Typeable a
-    => Schema -> DevOp (BlockDevice a) -> DevOp (Partitioned (BlockDevice a))
+    => Schema -> DevOp env (BlockDevice a) -> DevOp env (Partitioned (BlockDevice a))
 partition schema mkBlock = devop (Partitioned schema . fst) mkOp $ do
     blkdev <- mkBlock
     fdisk <- parted
@@ -62,8 +62,8 @@ type NamedPartition = (Partition, FilePath)
 namedPartitionPath :: NamedPartition -> FilePath
 namedPartitionPath = snd
 
-formatDevice :: DevOp (Partitioned (BlockDevice a))
-             -> DevOp (Formatted (Partitioned (BlockDevice a)))
+formatDevice :: DevOp env (Partitioned (BlockDevice a))
+             -> DevOp env (Formatted (Partitioned (BlockDevice a)))
 formatDevice mkparted = do
     dev <- mkparted
     let partitions = fmap pure (namedPartitions dev)
@@ -74,7 +74,7 @@ namedPartitions :: Partitioned (BlockDevice a) -> [NamedPartition]
 namedPartitions (Partitioned schema (BlockDevice _ path)) =
     zip (getPartitions schema) (fmap path [1..])
 
-formatPartition :: DevOp NamedPartition -> DevOp (Formatted NamedPartition)
+formatPartition :: DevOp env NamedPartition -> DevOp env (Formatted NamedPartition)
 formatPartition mkPart = devop (Formatted) mkOp $ do
     np@(Partition _ _ pType, _) <- mkPart
     case pType of
@@ -86,7 +86,7 @@ formatPartition mkPart = devop (Formatted) mkOp $ do
         noop ("format-partition: " <> Text.pack path)
              ("Formats " <> Text.pack path<> "using the right filesystem")
 
-formatSwapPartition :: DevOp FilePath -> DevOp ()
+formatSwapPartition :: DevOp env FilePath -> DevOp env ()
 formatSwapPartition mkpath = devop (const ()) mkOp $ do
     (,) <$> mkswap <*> mkpath
   where
@@ -98,7 +98,7 @@ formatSwapPartition mkpath = devop (const ()) mkOp $ do
                 (noAction)
                 (noAction)
 
-formatExt3Partition :: DevOp FilePath -> DevOp ()
+formatExt3Partition :: DevOp env FilePath -> DevOp env ()
 formatExt3Partition mkpath = devop (const ()) mkOp $ do
     (,) <$> mkfsExt3 <*> mkpath
   where

@@ -14,28 +14,30 @@ import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 
 main :: IO ()
-main = getArgs >>= simpleMain devtools [optimizeDebianPackages]
+main = do
+    args <- getArgs
+    simpleMain devtools [optimizeDebianPackages] args ()
   where
-    devtools :: DevOp ()
+    devtools :: DevOp env ()
     devtools = void $ do
         packages 
         dotFiles
         ghcid
 
-packages :: DevOp ()
+packages :: DevOp env ()
 packages = void $ do
     deb "git-core"
     deb "vim"
     deb "tmux"
     deb "graphviz"
 
-dotFiles :: DevOp ()
+dotFiles :: DevOp env ()
 dotFiles = void $ do
     fileContent "/home/user/.vimrc" dotVimrc
     fileContent "/home/user/.gitconfig" dotGitconfig
     fileContent "/home/user/.bash_profile" dotBashProfile
 
-dotVimrc, dotGitconfig, dotBashProfile :: DevOp FileContent
+dotVimrc, dotGitconfig, dotBashProfile :: DevOp env FileContent
 dotVimrc = pure $ convertString $ unlines $ [
     "syntax on"
   , "filetype plugin indent on"
@@ -56,6 +58,6 @@ dotBashProfile = pure $ convertString $ unlines $ [
   ]
 
 
-ghcid :: DevOp ()
+ghcid :: DevOp env ()
 ghcid = void $ do
     stackPackage "ghcid" (mereUser "user")

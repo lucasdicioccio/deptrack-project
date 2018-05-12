@@ -33,35 +33,38 @@ data DebianPackage (a :: Symbol) = DebianPackage !Name
 newtype DebianPackagesSet = DebianPackagesSet (Set Name)
     deriving Monoid
 
-installedWith :: DevOp (Binary c) -> DevOp (DebianPackage a) -> DevOp (Binary c)
+installedWith
+  :: DevOp env (Binary c)
+  -> DevOp env (DebianPackage a)
+  -> DevOp env (Binary c)
 b `installedWith` pkg = pkg *> b -- works because binary is generally pure
 
 -- | Note that apt cannot be bootstrapped easily and hence is a leaf
 -- dependency.
-apt :: DevOp (DebianPackage "apt")
+apt :: DevOp env (DebianPackage "apt")
 apt = return $ DebianPackage "apt"
 
 instance HasBinary (DebianPackage "apt") "apt-get" where
 instance HasBinary (DebianPackage "apt") "apt-key" where
 
-debianPackage :: (KnownSymbol a) => DevOp (DebianPackage a)
+debianPackage :: (KnownSymbol a) => DevOp env (DebianPackage a)
 debianPackage = f Proxy
   where
-    f :: (KnownSymbol a) => Proxy a -> DevOp (DebianPackage a)
+    f :: (KnownSymbol a) => Proxy a -> DevOp env (DebianPackage a)
     f proxy = deb (Text.pack (symbolVal proxy))
 
-generalDebianPackage :: Name -> DevOp DebianRepository -> DevOp (DebianPackage a)
+generalDebianPackage :: Name -> DevOp env DebianRepository -> DevOp env (DebianPackage a)
 generalDebianPackage n repo = fmap snd $ track mkOp $ do
-    aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
+    aptGet <- binary `installedWith` apt :: DevOp env (Binary "apt-get")
     _ <- repo
     return (aptGet, DebianPackage n)
   where
     mkOp (b,_) = rawpreop (DebianPackagesSet $ Set.singleton n)
                           (opFromPackagesSet b)
 
-deb :: Name -> DevOp (DebianPackage a)
+deb :: Name -> DevOp env (DebianPackage a)
 deb n = fmap snd $ track mkOp $ do
-    aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
+    aptGet <- binary `installedWith` apt :: DevOp env (Binary "apt-get")
     return (aptGet, DebianPackage n)
   where
     mkOp (b,_) = rawpreop (DebianPackagesSet $ Set.singleton n)
@@ -69,9 +72,9 @@ deb n = fmap snd $ track mkOp $ do
 
 -- | TODO: find a better way to layer debianpackages in "layers" at different
 -- dependency levels (e.g., by indexing depth, maybe at type level)
-unoptimizableDeb :: Name -> DevOp (DebianPackage a)
+unoptimizableDeb :: Name -> DevOp env (DebianPackage a)
 unoptimizableDeb n = fmap snd $ track mkOp $ do
-    aptGet <- binary `installedWith` apt :: DevOp (Binary "apt-get")
+    aptGet <- binary `installedWith` apt :: DevOp env (Binary "apt-get")
     return (aptGet, DebianPackage n)
   where
     mkOp (b,_) = rawpreop (()) (const $ opFromPackagesSet b $ DebianPackagesSet $ Set.singleton n)
@@ -116,9 +119,9 @@ suRunAsInDir (Binary x) dir user args input =
     cmd = unwords $ fmap quote $ (x:args)
     quote = id
 
-aptGetKeys :: KeyServerHostName -> KeyID -> DevOp (AptGetKey)
+aptGetKeys :: KeyServerHostName -> KeyID -> DevOp env (AptGetKey)
 aptGetKeys hostname fingerprint = devop snd mkOp $ do
-    aptKey <- binary `installedWith` apt :: DevOp (Binary "apt-key")
+    aptKey <- binary `installedWith` apt :: DevOp env (Binary "apt-key")
     return (aptKey, fingerprint)
   where
     mkOp (b,_) = buildOp ("apt-keys: " <> fingerprint)
@@ -128,5 +131,5 @@ aptGetKeys hostname fingerprint = devop snd mkOp $ do
                          (blindRun b ["del", Text.unpack fingerprint] "")
                          noAction
 
-postInstallHook :: PreOp -> DevOp (DebianPackage a) -> DevOp (DebianPackage a)
+postInstallHook :: PreOp -> DevOp env (DebianPackage a) -> DevOp env (DebianPackage a)
 postInstallHook o x = declare o x

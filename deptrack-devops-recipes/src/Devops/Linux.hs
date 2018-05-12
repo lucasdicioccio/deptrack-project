@@ -14,7 +14,7 @@ type Value = Text
 data KernelModule = KernelModule !Name [(Name, Value)]
 
 -- | Loads a kernel module.
-kernelmodule :: Name -> [(Name, Value)]-> DevOp KernelModule
+kernelmodule :: Name -> [(Name, Value)]-> DevOp env KernelModule
 kernelmodule name params = devop fst mkOp $ do
   mp <- modprobe
   return $ (KernelModule name params, mp)

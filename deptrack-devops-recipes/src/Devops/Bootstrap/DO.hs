@@ -49,7 +49,7 @@ standardDroplet = BoxConfiguration "deptrack-default" (RegionSlug "ams2") (SizeS
 -- | Describe a dependency on a DOcean droplet instance.
 --
 -- TODO: uniqueness of config?
-droplet :: Bool -> BoxConfiguration -> DevOp (Node DOcean)
+droplet :: Bool -> BoxConfiguration -> DevOp env (Node DOcean)
 droplet debug conf@BoxConfiguration{..} = devop id mkOp (pure $ Node $ DOcean conf)
   where
     mkOp _ = buildOp

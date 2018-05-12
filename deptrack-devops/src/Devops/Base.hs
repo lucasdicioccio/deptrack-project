@@ -54,17 +54,17 @@ type DevOpT e m = ReaderT e (DepTrackT PreOp m)
 
 -- | Handy name for tracking DevOp dependencies using a pure computation
 -- (recommended).
-type DevOp = DevOpT () []
+type DevOp env = DevOpT env []
 
 -- | Evaluates the return value of a DevOp, discarding the dependencies.
-runDevOp :: DevOp a -> Maybe a
-runDevOp = Safe.headMay . DepTrack.value . flip runReaderT ()
+runDevOp :: env -> DevOp env a -> Maybe a
+runDevOp env = Safe.headMay . DepTrack.value . flip runReaderT env
 
 -- | Evaluates the dependencies of a DevOp, discarding any result.
-getDependenciesOnly :: DevOp a -> Forest PreOp
-getDependenciesOnly devop =
+getDependenciesOnly :: env -> DevOp env a -> Forest PreOp
+getDependenciesOnly env devop =
   let
-     res = DepTrack.evalDepForest1 $ runReaderT devop ()
+     res = DepTrack.evalDepForest1 $ runReaderT devop env
   in
      case res of [] -> [] ; ((_, forest):_) -> forest
 

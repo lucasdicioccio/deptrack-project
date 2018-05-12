@@ -13,7 +13,7 @@ import           Devops.Utils
 
 data RPackage = RPackage !Name
 
-rPackage :: Name -> DevOp DownloadedFile -> DevOp (RPackage)
+rPackage :: Name -> DevOp env DownloadedFile -> DevOp env (RPackage)
 rPackage n dlPkg = devop fst mkOp $ do
     b <- r
     (DownloadedFile _ path) <- dlPkg
@@ -27,13 +27,13 @@ rPackage n dlPkg = devop fst mkOp $ do
                noAction
                noAction
 
-rTgzPkg :: URLString -> Name -> String -> DevOp RPackage
+rTgzPkg :: URLString -> Name -> String -> DevOp env RPackage
 rTgzPkg repo name version = do
   let url = repo <> Text.unpack name <> "_" <> version <> ".tar.gz"
   let path = Text.unpack name
   rPackage name (download url path)
 
-rPkg :: URLString -> Name -> DevOp RPackage
+rPkg :: URLString -> Name -> DevOp env RPackage
 rPkg url pkgname = devop fst mkOp $ do
     b <- r
     return (RPackage pkgname, b)

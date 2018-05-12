@@ -17,6 +17,8 @@ import           Devops.Callback
 import           Devops.Service
 import           Devops.Storage
 
+data NoEnv = NoEnv
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -26,13 +28,14 @@ main = do
     vmSetup (pubkeypath:args) = do
         self <- readSelf
         pubkeys <- readPubkeyContent pubkeypath
-        simpleMain (vm self pubkeys) [optimizeDebianPackages] args
+        simpleMain (vm self pubkeys) [optimizeDebianPackages] args NoEnv
 
     chrootNestedSetup :: PubkeyContent -> IO ()
     chrootNestedSetup pubkeys = do
         simpleMain (nbdBootstrapConfig nbdSlot (baseImageConfig pubkeys) imageContent)
                     [optimizeDebianPackages]
                     ["up"]
+                    NoEnv
 
 -- running-vm-related
 repo = "/opt/repo"
@@ -49,13 +52,13 @@ bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 imgSize = 20
 imgSuperUser = "superuser"
 
-vm :: Self -> PubkeyContent -> DevOp (Daemon QemuVM)
+vm :: Self -> PubkeyContent -> DevOp NoEnv (Daemon QemuVM)
 vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus eth0 disk
   where
-    disk :: DevOp QemuDisk
+    disk :: DevOp NoEnv QemuDisk
     disk = newDiskFromBaseImage rundir index baseImage
 
-    baseImage :: DevOp (BaseImage QemuBase)
+    baseImage :: DevOp NoEnv (BaseImage (QemuBase NoEnv))
     baseImage = dirtyBootstrap "/opt/repo/debootstrap"
                                savedImagePath
                                nbdSlot
@@ -66,11 +69,11 @@ vm self pubkeys = qemuVm (rundir, repo) addressPlan index ram cpus eth0 disk
     callback :: BinaryCall
     callback = BinaryCall self (const $ magicArgv pubkeys)
 
-baseImageConfig :: PubkeyContent -> (BaseImageConfig QemuBase)
+baseImageConfig :: PubkeyContent -> (BaseImageConfig (QemuBase NoEnv))
 baseImageConfig pubkeys =
     BaseImageConfig bootstrapBin (xenial imgSuperUser pubkeys)
 
-imageContent :: DevOp ()
+imageContent :: DevOp NoEnv ()
 imageContent = return ()
 
 magicArgv pubkeys = (convertString pubkeys : magicArgvTail)

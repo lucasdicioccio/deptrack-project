@@ -5,6 +5,7 @@ module Devops.QemuBootstrap where
 import           Data.Monoid             ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
+import           Data.Typeable           (Typeable)
 import           System.FilePath         ((</>))
 
 import           Devops.Base
@@ -21,10 +22,10 @@ import           Devops.QemuNbd
 import           Devops.Storage
 import           Devops.Utils
 
-data QemuBase =
+data QemuBase env =
     QemuBase { kernelPackageName         :: !Name
              , dhcpClientPackageName     :: !Name
-             , ethernetAdapterDchpConfig :: !(DevOp FilePresent)
+             , ethernetAdapterDchpConfig :: !(DevOp env FilePresent)
              , superUser                 :: !Name
              , pubKeys                   :: !FileContent
              }
@@ -34,13 +35,15 @@ data QemuBase =
 -- This method is safer than dirtyBootstrap because it will force users to
 -- release all temporary resources (i.e., after a full-cycle for
 -- turnup/turndown).
-synchedBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
-          -> FilePath  -- Path receiving the qemu image.
-          -> NBDSlot   -- NBD device number to use during the bootstrap.
-          -> (BaseImageConfig QemuBase) -- Configuration of the base image.
-          -> GB Size
-          -> BinaryCall
-          -> DevOp (BaseImage QemuBase)
+synchedBootstrap
+  :: (Typeable env)
+  => FilePath  -- Path to a temporary dir receiving the debootstrap environment.
+  -> FilePath  -- Path receiving the qemu image.
+  -> NBDSlot   -- NBD device number to use during the bootstrap.
+  -> (BaseImageConfig (QemuBase env)) -- Configuration of the base image.
+  -> GB Size
+  -> BinaryCall
+  -> DevOp env (BaseImage (QemuBase env))
 synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfileBackup x y))
 
 -- | Bootstraps a base image, copying the image after turnup.
@@ -52,24 +55,27 @@ synchedBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turndownfil
 -- You should only use this method to impress your friends or when you know
 -- what you're doing (the library author is in the former situation, not the
 -- latter).
-dirtyBootstrap :: FilePath  -- Path to a temporary dir receiving the debootstrap environment.
-          -> FilePath  -- Path receiving the qemu image.
-          -> NBDSlot   -- NBD device number to use during the bootstrap.
-          -> (BaseImageConfig QemuBase)  -- Configuration of the base image.
-          -> GB Size
-          -> BinaryCall
-          -> DevOp (BaseImage QemuBase)
+dirtyBootstrap
+  :: (Typeable env)
+  => FilePath  -- Path to a temporary dir receiving the debootstrap environment.
+  -> FilePath  -- Path receiving the qemu image.
+  -> NBDSlot   -- NBD device number to use during the bootstrap.
+  -> (BaseImageConfig (QemuBase env))  -- Configuration of the base image.
+  -> GB Size
+  -> BinaryCall
+  -> DevOp env (BaseImage (QemuBase env))
 dirtyBootstrap = bootstrapWithImageCopyFunction (\x y -> fmap snd (turnupfileBackup x y))
 
-bootstrapWithImageCopyFunction ::
-             (FilePath -> DevOp FilePresent -> DevOp FilePresent) -- Specifies a way to copy the image (see usage in bootstrap resp. dirtyBootstrap)
-          -> FilePath  -- Path to a temporary dir receiving the debootstrap environment.
-          -> FilePath  -- Path receiving the qemu image.
-          -> NBDSlot   -- NBD device number to use during the bootstrap.
-          -> (BaseImageConfig QemuBase)  -- Configuration of the base image.
-          -> GB Size
-          -> BinaryCall
-          -> DevOp (BaseImage QemuBase)
+bootstrapWithImageCopyFunction
+  :: (Typeable env)
+  => (FilePath -> DevOp env FilePresent -> DevOp env FilePresent) -- Specifies a way to copy the image (see usage in bootstrap resp. dirtyBootstrap)
+  -> FilePath  -- Path to a temporary dir receiving the debootstrap environment.
+  -> FilePath  -- Path receiving the qemu image.
+  -> NBDSlot   -- NBD device number to use during the bootstrap.
+  -> (BaseImageConfig (QemuBase env))  -- Configuration of the base image.
+  -> GB Size
+  -> BinaryCall
+  -> DevOp env (BaseImage (QemuBase env))
 bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     let qcow = qcow2Image (imgpath <> ".tmp") size
     let backedupQcow = QemuImage <$> imgcopy imgpath (fmap getImage qcow)
@@ -87,7 +93,7 @@ bootstrapWithImageCopyFunction imgcopy dirname imgpath slot cfg size cb = do
     fmap snd (backedupQcow `inject` boot)
 
 -- | Setups grub on the NBD device from the chroot and fixes grub.cfg
-grubSetup :: NBDSlot -> DevOp ()
+grubSetup :: NBDSlot -> DevOp env ()
 grubSetup slot = devop (const ()) mkOp $ do
     grubInstal <- Cmd.grubInstall
     updateGrub <- Cmd.updateGrub
@@ -126,7 +132,7 @@ ens3IfaceConfig = convertString $ unlines [
   ]
 
 -- | Configures a baseimage. Operations are meant to be called from inside a chroot.
-nbdBootstrapConfig :: NBDSlot -> BaseImageConfig QemuBase -> DevOp a -> DevOp a
+nbdBootstrapConfig :: NBDSlot -> BaseImageConfig (QemuBase env) -> DevOp env a -> DevOp env a
 nbdBootstrapConfig slot cfg extraConfig = do
     let login = superUser . specificConfiguration . cfgSuite $ cfg
     let keys = pubKeys . specificConfiguration . cfgSuite $ cfg
@@ -175,19 +181,19 @@ sudoers = convertString $ unlines [
  , "%sudo   ALL=(ALL) NOPASSWD:ALL"
  ]
 
-trusty :: Name -> FileContent -> DebootstrapSuite QemuBase
+trusty :: Name -> FileContent -> DebootstrapSuite (QemuBase env)
 trusty superuser pubkeys = Debootstrap.trusty base
   where
     base = QemuBase "linux-signed-image-generic-lts-trusty" "dhcp-client" eth0 superuser pubkeys
     eth0 = fmap snd $ fileContent "/etc/network/interfaces.d/eth0" (pure eth0IfaceConfig)
 
-xenial :: Name -> FileContent -> DebootstrapSuite QemuBase
+xenial :: Name -> FileContent -> DebootstrapSuite (QemuBase env)
 xenial superuser pubkeys = Debootstrap.xenial base
   where
     base = QemuBase "linux-signed-image-generic-lts-xenial" "isc-dhcp-client" ens3 superuser pubkeys
     ens3 = fmap snd $ fileContent "/etc/network/interfaces.d/ens3" (pure ens3IfaceConfig)
 
-jessie :: Name -> FileContent -> DebootstrapSuite QemuBase
+jessie :: Name -> FileContent -> DebootstrapSuite (QemuBase env)
 jessie superuser pubkeys = Debootstrap.jessie base
   where
     base = QemuBase "linux-image-amd64" "isc-dhcp-client" eth0 superuser pubkeys

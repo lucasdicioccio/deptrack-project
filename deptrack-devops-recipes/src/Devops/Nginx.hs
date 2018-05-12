@@ -177,7 +177,7 @@ indent txt = unlines $ map (\x -> "  " ++ x) $ lines txt
 -- Indeed, unfortunately one cannot just prevent apt-get post install hooks
 -- from running, hence what is left is to hack around and stop nginx after it
 -- started in a post-install hook.
-nginx :: DevOp (Binary "/usr/sbin/nginx")
+nginx :: DevOp env (Binary "/usr/sbin/nginx")
 nginx = binary `installedWith` postInstallHook stopSystemdService Pkg.nginx
   where
     stopSystemdService :: PreOp
@@ -193,7 +193,7 @@ nginx = binary `installedWith` postInstallHook stopSystemdService Pkg.nginx
 -- | We use `www-data` as a system user for nginx workers (the main server runs
 -- as super user because it needs extra privileges for binding ports but
 -- daemons servicing requests should not have such privileges).
-nginxWorkerUser :: DevOp User
+nginxWorkerUser :: DevOp env User
 nginxWorkerUser = preExistingUser "www-data"
 
 -- | Configures an nginx main server.
@@ -203,9 +203,9 @@ nginxMainServer :: Port (Daemon Nginx)
                 -- ^ port to listen on
                 -> ConfigDir
                 -- ^ directory for running the server and locating its config
-                -> [DevOp NginxServerConfig]
+                -> [DevOp env NginxServerConfig]
                 -- ^ individual sites configuration
-                -> DevOp (Listening (Daemon Nginx))
+                -> DevOp env (Listening (Daemon Nginx))
 nginxMainServer port rundir mkCfgs =
     let reload = const $ sighupPidFile "/run/nginx.pid" in
     fmap listening $ reloadableDaemon "nginx" Nothing nginx commandArgs reload $ do
@@ -220,7 +220,7 @@ nginxMainServer port rundir mkCfgs =
     commandArgs :: DaemonConfig Nginx -> CommandArgs
     commandArgs (FilePresent path) = [ "-c" , path ]
 
-    generateConfigFile :: DevOp NginxServerConfig -> DevOp FilePresent
+    generateConfigFile :: DevOp env NginxServerConfig -> DevOp env FilePresent
     generateConfigFile mkCfg = fmap snd $ do
         cfg@(NginxServerConfig _ name _ _ _) <- mkCfg
         fileContent (rundir </> printf "nginx-%s.conf" (Text.unpack name))
@@ -228,8 +228,8 @@ nginxMainServer port rundir mkCfgs =
 
 -- | Exposes a nginx server given sites configurations
 reverseProxy :: ConfigDir
-             -> [DevOp NginxServerConfig]
-             -> DevOp (Exposed (Daemon Nginx))
+             -> [DevOp env NginxServerConfig]
+             -> DevOp env (Exposed (Daemon Nginx))
 reverseProxy rundir configs = do
     let srv = nginxMainServer 80 rundir configs
     publicFacingService srv
@@ -239,10 +239,10 @@ proxyPass :: ConfigDir
           -- ^ where the configurations are generated
           -> HostString
           -- ^ the HTTP hostname used to match & route requests
-          -> DevOp (Remoted (Listening WebService))
+          -> DevOp env (Remoted (Listening WebService))
           -- ^ a remote service to proxy queries to (i.e., the upstream)
           -- TODO: make it a Exposed
-          -> DevOp NginxServerConfig
+          -> DevOp env NginxServerConfig
 proxyPass rundir hostname mkHttp = do
     (Remoted (Remote ip) (Listening port _)) <- mkHttp
     dir <- directory (rundir </> "www")

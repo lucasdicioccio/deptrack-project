@@ -26,6 +26,8 @@ import           Devops.Storage
 import           Devops.Haskell
 import           Devops.Debian.User
 
+data NoEnv = NoEnv
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -37,18 +39,18 @@ main = do
 
     chrootNestedSetup :: IO ()
     chrootNestedSetup = void $ do
-        simpleMain chrootImageContent [optimizeDebianPackages] ["up"]
+        simpleMain chrootImageContent [optimizeDebianPackages] ["up"] NoEnv
 
     base64EncodedNestedSetup :: [String] -> IO ()
     base64EncodedNestedSetup (b64:[]) = void $ do
-        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp ()
-        simpleMain target [optimizeDebianPackages] ["up"]
+        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp NoEnv ()
+        simpleMain target [optimizeDebianPackages] ["up"] NoEnv
     base64EncodedNestedSetup _ = error "invalid args for magic docker callback"
 
     dockerSetup :: [String] -> IO ()
     dockerSetup args = do
         self <- readSelf
-        simpleMain (dock self) [optimizeDebianPackages] args
+        simpleMain (dock self) [optimizeDebianPackages] args NoEnv
 
 readSelf :: IO SelfPath
 readSelf = takeWhile (/= '\NUL') <$> readFile "/proc/self/cmdline"
@@ -62,7 +64,7 @@ isMagicDockerArgv args = take 1 args == [magicDockerArgv]
 tempdir = "/opt/dockbootstrap-docker-example"
 bootstrapBin = "/sbin/bootstrap-deptrack-devops"
 
-dock :: SelfPath -> DevOp ()
+dock :: SelfPath -> DevOp NoEnv ()
 dock self = void $ do
     let image = dockerImage "deptrack-example-image" (simpleBootstrap tempdir baseImageConfig chrootCallback)
 
@@ -82,6 +84,7 @@ dock self = void $ do
                               (continue (closure $ static dockerDevOpContent)
                                         unclosure
                                         dockerCallback)
+                              NoEnv
                               id -- no modifications before start
 
     -- committedImage artifact
@@ -94,16 +97,16 @@ dock self = void $ do
     baseImageConfig =
         BaseImageConfig bootstrapBin xenial
 
-chrootImageContent :: DevOp ()
+chrootImageContent :: DevOp env ()
 chrootImageContent = void $ do
     deb "git-core"
 
-dockerDevOpContent :: DevOp FilePresent
+dockerDevOpContent :: DevOp env FilePresent
 dockerDevOpContent = do
     deb "python3"
     binaryPresent postgrest
 
-postgrestProject :: DevOp (StackProject "postgrest")
+postgrestProject :: DevOp env (StackProject "postgrest")
 postgrestProject = fmap fst $ do
     let url = "https://github.com/begriffs/postgrest.git"
     let branch = "master"
@@ -112,5 +115,5 @@ postgrestProject = fmap fst $ do
 
 instance HasBinary (StackProject "postgrest") "postgrest" where
 
-postgrest :: DevOp (Binary "postgrest")
+postgrest :: DevOp env (Binary "postgrest")
 postgrest = stackInstall "/home/user" postgrestProject

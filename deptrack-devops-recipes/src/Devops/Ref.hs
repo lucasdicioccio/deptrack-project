@@ -23,20 +23,24 @@ data Resolver a =
 instance Show (Resolver a) where
   show = unpack . resolvedKey
 
-type Evaluator b = forall a. DevOp a -> b
+type Evaluator env b = forall a. DevOp env a -> b
 
-delay :: DevOp (Resolver a) -> (a -> DevOp b) -> DevOp (Resolver (DevOp b))
+delay
+  :: DevOp env (Resolver a)
+  -> (a -> DevOp env b)
+  -> DevOp env (Resolver (DevOp env b))
 delay r f = (fmap . fmap) f r
 
 delayedEval
   :: (Monad m, Typeable a)
-  => DevOpT e m (Resolver (DevOp a))
-  -> (DevOp a -> OpFunctions)
+  => DevOpT e m (Resolver (DevOp env a))
+  -> (DevOp env a -> OpFunctions)
+  -> env
   -> DevOpT e m (Resolver (Maybe a))
-delayedEval mkR eval = devop fst mkOp $ do
+delayedEval mkR eval env = devop fst mkOp $ do
     r <- mkR
     let devopIO = resolver r
-    return (Resolver (resolvedKey r) (fmap runDevOp devopIO), devopIO)
+    return (Resolver (resolvedKey r) (fmap (runDevOp env) devopIO), devopIO)
   where
     mkOp (Resolver k _, devopIO) = buildOp
                 ("delayed " <> k)
@@ -50,13 +54,20 @@ delayedEval mkR eval = devop fst mkOp $ do
 class HasResolver a c where
   resolve :: Key -> c -> IO a
 
-saveRef :: Key -> DevOp (Ref a)
-saveRef = track mkOp . return . Ref
+saveRef
+  :: Key
+  -> DevOp env (Ref a)
+saveRef =
+    track mkOp . return . Ref
   where
     mkOp (Ref k) = noop ("reference: " <> k) ("save reference for later use " <> k)
 
 
-resolveRef :: (HasResolver a c, Typeable a) => DevOp (Ref a) -> DevOp c -> DevOp (Resolver a)
+resolveRef
+  :: (HasResolver a c, Typeable a)
+  => DevOp env (Ref a)
+  -> DevOp env c
+  -> DevOp env (Resolver a)
 resolveRef mkRef context = devop snd mkOp $ do
   Ref k <- mkRef
   ctx <- context

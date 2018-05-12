@@ -144,7 +144,7 @@ data Exposed a = Exposed { exposedPort :: !(Port a) , exposedService :: !a }
   deriving Functor
 
 -- | Builds an existing remote.
-existingRemote :: IpNetString -> DevOp Remote
+existingRemote :: IpNetString -> DevOp env Remote
 existingRemote ip = declare mkOp (pure $ Remote ip)
   where mkOp = noop ("existing-remote: " <> ip)
                     ("an already-existing network host")
@@ -159,7 +159,7 @@ enableForwarding,disableForwarding :: IO ()
 enableForwarding = writeFile ipForwardingProcPath "1\n"
 disableForwarding = writeFile ipForwardingProcPath "0\n"
 
-ipForwarding :: DevOp IPForwarding
+ipForwarding :: DevOp env IPForwarding
 ipForwarding =
   let mkop _ = buildOp ("linux-ip-forwarding")
                        ("ensures that /proc/sys/net/ipv4/ip_forward is 1")
@@ -174,10 +174,10 @@ ipForwarding =
 -- We should break-down individual needs (e.g., nat = forward related in,
 -- forward everything out etc.). Also, use a graph-optimization to collect,
 -- merge, and atomically commit rules.
-nating :: DevOp (Binary "iptables")
-       -> DevOp Interface
-       -> DevOp Interface
-       -> DevOp (NATing, Binary "iptables")
+nating :: DevOp env (Binary "iptables")
+       -> DevOp env Interface
+       -> DevOp env Interface
+       -> DevOp env (NATing, Binary "iptables")
 nating binaries internet lan = devop id mkOp $ do
     nat <- NATing <$> internet <*> lan
     bins <- binaries
@@ -236,7 +236,7 @@ nating binaries internet lan = devop id mkOp $ do
             )
             noAction
 
-bridge :: Name -> DevOp (Binary "brctl", Binary "ip") -> DevOp (Bridge, (Binary "brctl", Binary "ip"))
+bridge :: Name -> DevOp env (Binary "brctl", Binary "ip") -> DevOp env (Bridge, (Binary "brctl", Binary "ip"))
 bridge name binaries = devop id mkop $ do
     let br = Bridge name
     bins <- binaries
@@ -252,7 +252,7 @@ bridge name binaries = devop id mkop $ do
                      noAction
 
 
-tap :: Name -> DevOp User -> DevOp (Binary "tunctl") -> DevOp (Tap, Binary "tunctl")
+tap :: Name -> DevOp env User -> DevOp env (Binary "tunctl") -> DevOp env (Tap, Binary "tunctl")
 tap name usr binaries = devop id mkOp $ do
     (,) <$> (Tap name <$> usr) <*> binaries 
   where
@@ -264,7 +264,7 @@ tap name usr binaries = devop id mkOp $ do
         (blindRun t ["-d", Text.unpack name] "")
         noAction
 
-configuredInterface :: IpNetString -> DevOp Interface -> DevOp (Binary "ip") -> DevOp (ConfiguredInterface)
+configuredInterface :: IpNetString -> DevOp env Interface -> DevOp env (Binary "ip") -> DevOp env (ConfiguredInterface)
 configuredInterface addrStr mkIface binaries = devop fst mkOp $ do
    iface <- ConfiguredInterface addrStr <$> mkIface
    bins <- binaries
@@ -278,7 +278,7 @@ configuredInterface addrStr mkIface binaries = devop fst mkOp $ do
             (blindRun ip ["addr", "del", Text.unpack addrStr, "dev", Text.unpack $ interfaceName iface] "")
             noAction
 
-bridgedInterface :: DevOp Interface -> DevOp Bridge -> DevOp (Binary "brctl", Binary "ip") -> DevOp (Interface, Bridge, (Binary "brctl", Binary "ip"))
+bridgedInterface :: DevOp env Interface -> DevOp env Bridge -> DevOp env (Binary "brctl", Binary "ip") -> DevOp env (Interface, Bridge, (Binary "brctl", Binary "ip"))
 bridgedInterface mkIface mkBridge binaries =
   let mkOp ((TapIface (Tap n _)), Bridge br, (b,ip)) = buildOp
         ("linux-ip-network-bridged-tap: " <> n <> "<->" <> br)
@@ -295,9 +295,9 @@ bridgedInterface mkIface mkBridge binaries =
 -- | Proxies and forward traffic from a local port to a remotely-listening service.
 proxyRemote :: Typeable a
             => Port a
-            -> DevOp ConfiguredInterface
-            -> DevOp (Remoted (Listening a))
-            -> DevOp (Proxied a)
+            -> DevOp env ConfiguredInterface
+            -> DevOp env (Remoted (Listening a))
+            -> DevOp env (Proxied a)
 proxyRemote publicPort mkInternet mkRemote = devop snd mkOp $ do
     (Remoted (Remote ip) (Listening machinePort x)) <- mkRemote
     iptablesCommand <- iptables
@@ -353,7 +353,7 @@ proxyRemote publicPort mkInternet mkRemote = devop snd mkOp $ do
 
 -- | Exposes a proxied service to the Internet.
 --  * Listening service is proxied -> private port is used because prerouting rewrites ports
-publicFacingProxy :: Typeable a => DevOp (Proxied a) -> DevOp (Exposed a)
+publicFacingProxy :: Typeable a => DevOp env (Proxied a) -> DevOp env (Exposed a)
 publicFacingProxy mkProxy = devop snd mkOp $ do
     (Proxied (_,privatePort) port val) <- mkProxy
     iptablesCommand <- iptables
@@ -380,7 +380,7 @@ publicFacingProxy mkProxy = devop snd mkOp $ do
                   noAction
 
 --  * Listening service is open locally -> should be using the INPUT chain.
-publicFacingService :: Typeable a => DevOp (Listening a) -> DevOp (Exposed a)
+publicFacingService :: Typeable a => DevOp env (Listening a) -> DevOp env (Exposed a)
 publicFacingService mkListening = devop snd mkOp $ do
   (Listening port val) <- mkListening
   iptablesCommand <- iptables

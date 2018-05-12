@@ -73,16 +73,18 @@ applyMethod transformations originalForest meth = do
 --
 -- You should use this 'simpleMain' for simple configuration binaries, more
 -- involved architectures shoul almost need a 'App' or 'appMain'.
-simpleMain :: DevOp a
+simpleMain :: DevOp env a
            -- ^ an operation
            -> [(Forest PreOp -> Forest PreOp)]
            -- ^ forest transformations to optimize the resulting graph
            -> [String]
            -- ^ args
+           -> env
+           -- ^ environment
            -> IO ()
-simpleMain devop optimizations = go
+simpleMain devop optimizations args env = go args
   where
-    forest = getDependenciesOnly devop
+    forest = getDependenciesOnly env devop
     call m = applyMethod optimizations forest m
     go ("up":_)        = call $ TurnUp Concurrently
     go ("up-seq":_)    = call $ TurnUp Sequentially
@@ -110,24 +112,28 @@ type ForestOptimization = Forest PreOp -> Forest PreOp
 -- | A builder for app that can be useful for defining an infrastructure as a
 -- recursive structure where the "main entry point" of the recursion is the
 -- binary itself.
-data App arch = App {
-    _parseArgs :: [String] -> (arch, Method)
+data App env node = App {
+    _parseArgs :: [String] -> (node, Method)
   -- ^ Parses arguments, returns a parsed architecture and a set of args for
   -- the real defaulMain.
-  , _revParse  :: arch -> Method -> [String]
+  , _revParse  :: node -> Method -> [String]
   -- ^ Reverse parse arguments, for instance when building a callback.
-  , _target    :: arch -> SelfPath -> (arch -> Method -> [String]) -> DevOp ()
+  , _target    :: node -> SelfPath -> (node -> Method -> [String]) -> DevOp env ()
   -- ^ Generates a target from the argument and the selfPath
   , _opts      :: [ForestOptimization]
+  -- ^ Optimizations to run.
+  , _retrieveEnv  :: node -> IO env
+  -- ^ IO to retrieve the current environment.
   }
 
 -- | DefaultMain for 'App'.
-appMain :: App a -> IO ()
+appMain :: App env a -> IO ()
 appMain App{..} = do
     self <- getExecutablePath
     args <- getArgs
-    let (arch, meth) = _parseArgs args
-    let forest = getDependenciesOnly $ _target arch self _revParse
+    let (node, meth) = _parseArgs args
+    env  <- _retrieveEnv node
+    let forest = getDependenciesOnly env $ _target node self _revParse
     applyMethod _opts forest meth
 
 -- | Unsafely parse a 'Method' from what could be a command line argument.
@@ -175,13 +181,13 @@ graphize forest = buildGraph preOpUniqueId forest
 --
 -- You will likely add 'opClosureFromB64' in the '_parseArgs' field of your
 -- 'App' and 'opClosureToB64' in the '_revParse' field.
-opClosureFromB64 :: Typeable a => ByteString -> Closure (DevOp a)
+opClosureFromB64 :: (Typeable env, Typeable a) => ByteString -> Closure (DevOp env a)
 opClosureFromB64 b64 = do
     let bstr = B64.decode b64
     let encodedClosure = either (error "invalid base64") id bstr
     Binary.decode encodedClosure
 
 -- | Dual to 'opClosureFromB64'.
-opClosureToB64 :: Typeable a => Closure (DevOp a) -> ByteString
+opClosureToB64 :: (Typeable env, Typeable a) => Closure (DevOp env a) -> ByteString
 opClosureToB64 clo =
     B64.encode $ Binary.encode clo

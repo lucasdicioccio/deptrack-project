@@ -13,7 +13,7 @@ import           Devops.Utils
 
 data ApparmorProfile = ApparmorProfile !FilePresent
 
-reloadApparmor :: DevOp FilePresent -> DevOp ApparmorProfile
+reloadApparmor :: DevOp env FilePresent -> DevOp env ApparmorProfile
 reloadApparmor profileConfig = devop fst mkOp $ do
     ap <- apparmorParser
     fp@(FilePresent path) <- profileConfig

@@ -11,7 +11,7 @@ import           Devops.Utils           (blindRun)
 
 data PythonPackage = PythonPackage !Name
 
-python3Package :: Name -> DevOp (PythonPackage)
+python3Package :: Name -> DevOp env (PythonPackage)
 python3Package n = devop fst mkOp $ do
     b <- pip3
     return (PythonPackage n,b)

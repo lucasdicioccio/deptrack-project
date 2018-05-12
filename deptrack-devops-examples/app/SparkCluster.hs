@@ -41,6 +41,8 @@ import           Network.DO
 import           System.Environment          (getArgs)
 import           System.FilePath
 
+data NoEnv = NoEnv
+
 exe    = "deptrack-devops-example-spark"
 root   = preExistingUser "root"
 allIps = "0.0.0.0"
@@ -48,7 +50,7 @@ dropletConfig key=  standardDroplet { size = SizeSlug "2gb", configImageSlug = u
 sparkDistributionURL :: String
 sparkDistributionURL = "http://d3kbcqa49mib13.cloudfront.net/spark-1.6.1-bin-hadoop2.6.tgz"
 
-parasitedHost :: String -> Int -> DevOp ParasitedHost
+parasitedHost :: String -> Int -> DevOp env ParasitedHost
 parasitedHost dropletName key = do
   let host     = droplet False ((dropletConfig key) { configName = dropletName } )
       built    = build ubuntu16_04 ".." exe
@@ -58,8 +60,8 @@ parasitedHost dropletName key = do
 
 instance HasBinary (DebianPackage "openjdk-8-jdk-headless") "java" where
 
-javaInstalled = let java = binary :: DevOp (Binary "java")
-                    jre = debianPackage :: DevOp (DebianPackage "openjdk-8-jdk-headless")
+javaInstalled = let java = binary :: DevOp env (Binary "java")
+                    jre = debianPackage :: DevOp env (DebianPackage "openjdk-8-jdk-headless")
                 in java `installedWith` jre
 
 -- TODO change to safer user
@@ -113,7 +115,10 @@ type instance DaemonConfig Spark = SparkConfig
 instance Static (Serializable SparkConfig) where
   closureDict = closure $ static Dict
 
-sparkNodeRunning :: SparkConfig -> DevOp (Binary "spark") -> DevOp (Daemon Spark)
+sparkNodeRunning
+  :: SparkConfig
+  -> DevOp NoEnv (Binary "spark")
+  -> DevOp NoEnv (Daemon Spark)
 sparkNodeRunning config sparkRootDir = devop id mkOp $ do
   _ <- ipv4Precedence  -- https://www.digitalocean.com/community/questions/how-to-disable-ubuntu-14-04-ipv6
   _ <- javaInstalled   -- we need java to be installed
@@ -134,7 +139,7 @@ sparkNodeRunning config sparkRootDir = devop id mkOp $ do
 
       stopSpark path config  = blindRunWithEnv (Binary $ path </> sparkStopCommand config) [] "" java_home_env
 
-sparkBin :: DevOp DirectoryPresent -> DevOp (Binary "spark")
+sparkBin :: DevOp NoEnv DirectoryPresent -> DevOp NoEnv (Binary "spark")
 sparkBin sparkDir = track mkOp $ do
   (DirectoryPresent d) <- sparkDir
   return $ bin $ d </> "sbin"
@@ -143,7 +148,7 @@ sparkBin sparkDir = track mkOp $ do
                            ("run spark nodes from " <> pack path)
 
 -- | Install a spark master on "local" host
-sparkMaster :: DevOp ParasitedHost -> DevOp (Remoted ())
+sparkMaster :: DevOp NoEnv ParasitedHost -> DevOp NoEnv (Remoted ())
 sparkMaster host =
   let remoteMaster = closure (static (flip sparkNodeRunning (sparkBin sparkInstalled)))
       masterConfig = fst <$> track mkOp (do
@@ -158,7 +163,10 @@ sparkMaster host =
 
   in remotedWith masterConfig root remoteMaster host
 
-sparkSlave :: DevOp (Remoted ()) -> DevOp ParasitedHost -> DevOp (Remoted ())
+sparkSlave
+  :: DevOp NoEnv (Remoted ())
+  -> DevOp NoEnv ParasitedHost
+  -> DevOp NoEnv (Remoted ())
 sparkSlave remoteMaster host =
   let remoteSlave = closure (static (flip sparkNodeRunning (sparkBin sparkInstalled)))
       slaveConfig = fst <$> track mkOp (do
@@ -175,7 +183,7 @@ sparkSlave remoteMaster host =
 
   in fst <$> inject (remotedWith slaveConfig root remoteSlave host) remoteMaster
 
-sparkCluster :: Int -> String -> Int -> DevOp ()
+sparkCluster :: Int -> String -> Int -> DevOp NoEnv ()
 sparkCluster numberOfSlaves baseName key = do
   let masterHost      = parasitedHost (baseName <> "-master") key
       slaveHosts      = map (\ i -> parasitedHost (baseName <> "-slave-" <> show i) key) [1 .. numberOfSlaves]
@@ -192,10 +200,10 @@ main = do
 
     base64EncodedRemoteSetup :: [String] -> IO ()
     base64EncodedRemoteSetup (b64:[]) = void $ do
-        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp ()
-        simpleMain target [optimizeDebianPackages] ["up"]
+        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp NoEnv ()
+        simpleMain target [optimizeDebianPackages] ["up"] NoEnv
     base64EncodedNestedSetup _ = Prelude.error "invalid args for magic remote callback"
 
     localSetup :: [String] -> IO ()
     localSetup (numSlaves:baseName:key:args) =
-      simpleMain (sparkCluster (read numSlaves) baseName (read key))  [optimizeDebianPackages] args
+      simpleMain (sparkCluster (read numSlaves) baseName (read key))  [optimizeDebianPackages] args NoEnv

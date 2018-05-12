@@ -51,7 +51,7 @@ isMagicRemoteArgv :: [ String ] -> Bool
 isMagicRemoteArgv args = take 1 args == [magicRemoteArgv]
 
 -- | A parasite that requires some `Remote` resolution to be deployed.
-parasite :: DevOp User -> DevOp FilePresent -> DevOp Remotable -> DevOp ParasitedHost
+parasite :: DevOp env User -> DevOp env FilePresent -> DevOp env Remotable -> DevOp env ParasitedHost
 parasite usr selfPath mkRemote = track mkOp $ do
   r <- mkRemote
   (FilePresent selfBinary) <- selfPath
@@ -66,7 +66,7 @@ parasite usr selfPath mkRemote = track mkOp $ do
         inferUserDirectory (User "root") = "/root"
         inferUserDirectory (User u)      = "/home" </> unpack u
 
-sshReady :: DevOp Remotable  -> DevOp SshReady
+sshReady :: DevOp env Remotable  -> DevOp env SshReady
 sshReady resolveRemote = devop id mkOp $ SshReady <$> resolveRemote
     where
       mkOp (SshReady r) =
@@ -91,14 +91,14 @@ trySsh h n = do
         oneSecond = 1 * 1000 * 1000
 
 -- | A file transferred at a remote path.
-fileTransferred :: DevOp User -> DevOp FilePresent -> FilePath -> DevOp SshReady -> DevOp FileTransferred
+fileTransferred :: DevOp env User -> DevOp env FilePresent -> FilePath -> DevOp env SshReady -> DevOp env FileTransferred
 fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
   u <- usr
   c <- scp
   f <- mkFp
   r <- remoteSsh <$> mkRemote
   return (FileTransferred path u r, (f,c))
-  where scp = binary :: DevOp (Binary "scp")
+  where scp = binary :: DevOp env (Binary "scp")
         mkOp (FileTransferred rpath u r, (FilePresent lpath,c)) =
               buildOp ("remote-file: " <> pack rpath <> " @" <> pack (show $ resolvedKey r))
                  ("remote copy file " <> pack lpath <> " to " <> pack (show $ resolvedKey r) <> " as user " <> pack (show $ userName u))
@@ -118,13 +118,14 @@ fileTransferred usr mkFp path mkRemote = devop fst mkOp $ do
 -- TODO unify the different ways of talking to a remote host
 -- DEPRECATED
 remoted :: (Typeable a)
-        => (Closure (DevOp a) -> BinaryCall)
-        -> DevOp User
-        -> Closure (DevOp a)
-        -> DevOp ParasitedHost
-        -> DevOp (Remoted (Maybe a))
-remoted mkCb usr clo host = devop fst mkOp $ do
-    let remoteObj = runDevOp $ unclosure clo
+        => (Closure (DevOp env a) -> BinaryCall)
+        -> DevOp env User
+        -> Closure (DevOp env a)
+        -> env
+        -> DevOp env ParasitedHost
+        -> DevOp env (Remoted (Maybe a))
+remoted mkCb usr clo env host = devop fst mkOp $ do
+    let remoteObj = runDevOp env $ unclosure clo
     let (BinaryCall selfPath fArgs) = mkCb clo
     let args = fArgs (TurnUp Sequentially)
     u <- usr
@@ -132,7 +133,7 @@ remoted mkCb usr clo host = devop fst mkOp $ do
     (ParasitedHost _ _ r) <- host
     return (Remoted r remoteObj,(selfPath, args, c, u, r))
   where
-    ssh = binary :: DevOp (Binary "ssh")
+    ssh = binary :: DevOp env (Binary "ssh")
     mkOp (_, (rpath, args, c, u, r)) = buildOp
             ("remote-closure: " <> pack rpath <> " @" <> pack (show $ resolvedKey r))
             ("calls '" <> pack rpath <> "'")
@@ -155,10 +156,15 @@ remoted mkCb usr clo host = devop fst mkOp $ do
 --
 -- This function exists to handle the case where the remote closure's arguments cannot be known at graph construction
 -- time, e.g. when it depends on some dynamic value that is generated when the graph is turned-up. Note the return
--- value which is an opaque remoted value: We cannot construct an actual DevOp node because we cannot run deptrack
+-- value which is an opaque remoted value: We cannot construct an actual DevOp env node because we cannot run deptrack
 -- on the closure's content.
-remotedWith :: (Typeable b, Typeable a, Static (Serializable a))
-               => DevOp (IO a) -> DevOp User -> Closure (a -> DevOp b) -> DevOp ParasitedHost -> DevOp (Remoted ())
+remotedWith
+  :: (Typeable env, Typeable b, Typeable a, Static (Serializable a))
+  => DevOp env (IO a)
+  -> DevOp env User
+  -> Closure (a -> DevOp env b)
+  -> DevOp env ParasitedHost
+  -> DevOp env (Remoted ())
 remotedWith mkAction usr clo host = devop fst mkOp $ do
     u <- usr
     c <- ssh
@@ -166,7 +172,7 @@ remotedWith mkAction usr clo host = devop fst mkOp $ do
     (ParasitedHost rpath _ r) <- host
     return (Remoted r (),(rpath, c, clo, u, r, act))
   where
-      ssh = binary :: DevOp (Binary "ssh")
+      ssh = binary :: DevOp env (Binary "ssh")
       mkOp (_, (rpath, c, clos, u, r, act)) = buildOp
           ("remote-deferred-closure: " <> " @" <> pack (show $ resolvedKey r))
           ("calls 'turnup --b64=XXX' at host " <> pack (show $ resolvedKey r))
@@ -189,21 +195,22 @@ remotedWith mkAction usr clo host = devop fst mkOp $ do
 --
 -- Note the remote continuation is run `Sequentially`
 remoteContinued
-  :: (Typeable a)
-  => DevOp User
-  -> Continued a
-  -> DevOp ParasitedHost
-  -> DevOp (Remoted (Maybe a))
-remoteContinued usr cont host =  devop fst mkOp $ do
+  :: (Typeable a, Typeable env)
+  => DevOp env User
+  -> Continued env a
+  -> env
+  -> DevOp env ParasitedHost
+  -> DevOp env (Remoted (Maybe a))
+remoteContinued usr cont env host =  devop fst mkOp $ do
     u <- usr
     c <- ssh
-    let obj = eval cont
+    let obj = eval env cont
         (BinaryCall _ fArgs) = callback cont
         args = fArgs (TurnUp Sequentially)
     (ParasitedHost rpath _ r) <- host
     return (Remoted r obj,(rpath, c, u,args,  r))
   where
-      ssh = binary :: DevOp (Binary "ssh")
+      ssh = binary :: DevOp env (Binary "ssh")
       mkOp (_, (rpath, c, u, args, r)) = buildOp
           ("remote-continued: " <> " @" <> pack (show $ resolvedKey r))
           ("calls 'turnup' at host " <> pack (show $ resolvedKey r))

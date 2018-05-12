@@ -26,7 +26,7 @@ import           Devops.Base
 --
 -- In current implementation, the .git directory from the clone will be served,
 -- hence make sure the GitRepo you clone has no secret.
-gitCloned :: DevOp GitRepo -> DevOp NginxServerConfig
+gitCloned :: DevOp env GitRepo -> DevOp env NginxServerConfig
 gitCloned mkRepo = do
     let locs = [ NginxLocationConfig "/" staticSiteDirectives ]
     (GitRepo dir@(DirectoryPresent dirname) _ _) <- mkRepo
@@ -39,7 +39,7 @@ gitCloned mkRepo = do
 -- be useful as a static pointer.
 _gitClonedStaticSites :: ConfigDir
                       -> [(HostString,GitUrl,GitBranch)]
-                      -> DevOp (Listening WebService)
+                      -> DevOp env (Listening WebService)
 _gitClonedStaticSites rundir infos = do
     let dir hostdir = userDirectory (Text.unpack hostdir) (mereUser "staticsites")
     let repo (hostname,url,branch) = gitClone url branch git (dir hostname)

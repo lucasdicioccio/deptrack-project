@@ -17,7 +17,7 @@ data DownloadedFile = DownloadedFile { downloadedFrom :: !URLString
                                      , downloadedTo   :: !FilePath
                                      }
 
-download :: URLString -> FilePath -> DevOp DownloadedFile
+download :: URLString -> FilePath -> DevOp env DownloadedFile
 download url path = devop fst mkop $ do
     b <- wget
     return (DownloadedFile url path, b)

@@ -35,9 +35,9 @@ instance HasDockerImage (Build 'Ubuntu14_04) where
 instance HasDockerImage (Build 'Ubuntu16_04) where
   dockerImage _ = ImageName "haskell:8.0.2"
 
-build :: (Typeable o, HasDockerImage (Build o)) => Proxy o -> FilePath -> BuildArgs -> DevOp (Build o)
+build :: (Typeable o, HasDockerImage (Build o)) => Proxy o -> FilePath -> BuildArgs -> DevOp env (Build o)
 build _ sourceDir buildTarget = devop snd mkOp $ do
-  d <- binary :: DevOp (Binary "dockerX")  -- we need docker installed...
+  d <- binary :: DevOp env (Binary "dockerX")  -- we need docker installed...
   return (d,Build buildTarget sourceDir)
     where
       mkOp (_, b@Build{..}) = buildOp
@@ -48,7 +48,7 @@ build _ sourceDir buildTarget = devop snd mkOp $ do
         (blindRemoveLink $ asBinaryName buildTarget)
         noAction
 
-buildOutput :: (Typeable o) => DevOp (Build o)  -> DevOp FilePresent
+buildOutput :: (Typeable o) => DevOp env (Build o)  -> DevOp env FilePresent
 buildOutput built = devop id mkOp $
   built >>= pure . FilePresent . asBinaryName . remotableExec
     where

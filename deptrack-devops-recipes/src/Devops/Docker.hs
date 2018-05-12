@@ -52,7 +52,7 @@ import           Devops.Storage
 data DockerImage = DockerImage !Name
 
 -- | A named, pre-existing docker image.
-preExistingDockerImage :: Name -> DevOp DockerImage
+preExistingDockerImage :: Name -> DevOp env DockerImage
 preExistingDockerImage name =
     declare op (return $ DockerImage name)
   where
@@ -68,7 +68,7 @@ preExistingDockerImage name =
 -- TODO: consider relaxing BaseImage's FilePresent to a URL (e.g., using a
 -- TypeFamily to specialize the type). Indeed, we can download a BaseImage from
 -- a repository using Docker.
-dockerImage :: Name -> DevOp (BaseImage DockerBase) -> DevOp (DockerImage)
+dockerImage :: Name -> DevOp env (BaseImage DockerBase) -> DevOp env (DockerImage)
 dockerImage name mkBase = devop fst mkOp $ do
     base <- mkBase
     docker <- Cmd.docker
@@ -111,9 +111,9 @@ newtype RunningContainer = RunningContainer { getRunning :: Container }
 --
 -- It's cid is stored in a file in /var/run/devops.
 standbyContainer :: Name
-                 -> DevOp DockerImage
-                 -> DevOp ContainerCommand
-                 -> DevOp StandbyContainer
+                 -> DevOp env DockerImage
+                 -> DevOp env ContainerCommand
+                 -> DevOp env StandbyContainer
 standbyContainer name mkImage mkCmd = devop fst mkOp $ do
     DirectoryPresent dirPath <- directory "/var/run/devops"
     let cidFile = dirPath </> Text.unpack name <> ".le-cid"
@@ -148,8 +148,8 @@ standbyContainer name mkImage mkCmd = devop fst mkOp $ do
 
 -- | Starts a standing-by container and wait for it depending on a waitmode.
 runningContainer :: DockerWaitMode
-                 -> DevOp StandbyContainer
-                 -> DevOp RunningContainer
+                 -> DevOp env StandbyContainer
+                 -> DevOp env RunningContainer
 runningContainer waitmode standby = devop fst mkOp $ do
     running <- RunningContainer . getStandby <$> standby
     docker <- Cmd.docker
@@ -175,10 +175,10 @@ data Dockerized a =
                , dockerizedContainer :: !Container
                } deriving Functor
 
-insertFile :: DevOp FilePresent
+insertFile :: DevOp env FilePresent
            -> FilePath
-           -> DevOp StandbyContainer
-           -> DevOp StandbyContainer
+           -> DevOp env StandbyContainer
+           -> DevOp env StandbyContainer
 insertFile mkFile tgt mkStandby = devop fst mkOp $ do
     (FilePresent local) <- mkFile
     standby <- mkStandby
@@ -194,10 +194,10 @@ insertFile mkFile tgt mkStandby = devop fst mkOp $ do
                 noAction
                 noAction
 
-insertDir :: DevOp DirectoryPresent
+insertDir :: DevOp env DirectoryPresent
           -> FilePath
-          -> DevOp StandbyContainer
-          -> DevOp StandbyContainer
+          -> DevOp env StandbyContainer
+          -> DevOp env StandbyContainer
 insertDir mkDir tgt mkStandby = devop fst mkOp $ do
     (DirectoryPresent local) <- mkDir
     standby <- mkStandby
@@ -216,17 +216,18 @@ insertDir mkDir tgt mkStandby = devop fst mkOp $ do
 
 dockerized :: Name
            -- ^ the name of the docker container
-           -> DevOp DockerImage
+           -> DevOp env DockerImage
            -- ^ the image used to start this container
-           -> Continued a
+           -> Continued env a
            -- ^ the continued program to run in the container
-           -> (DevOp StandbyContainer -> DevOp StandbyContainer)
+           -> env
+           -> (DevOp env StandbyContainer -> DevOp env StandbyContainer)
            -- ^ an optional setup phase to modify the container. Use 'id' for
            -- "no particular setup" or partially-apply 'insertFile' to add
            -- extra data.
-           -> DevOp (Dockerized (Maybe a))
-dockerized name mkImage cont beforeStart = declare op $ do
-    let obj = eval cont
+           -> DevOp env (Dockerized (Maybe a))
+dockerized name mkImage cont env beforeStart = declare op $ do
+    let obj = eval env cont
     let (BinaryCall selfPath fArgs) = callback cont
     let args = fArgs (TurnUp Concurrently)
     let selfBin = preExistingFile selfPath
@@ -254,14 +255,14 @@ instance HasResolver (DockerBridgeInfo b) (DockerizedDaemon b, Binary docker) wh
         dat <- readProcess docker [ "network", "inspect", "bridge" ] ""
         seq (length dat) (return $ convertString dat)
 
-resolveDockerRef :: DevOp (DockerizedDaemon a)
-                 -> DevOp (Resolver (DockerBridgeInfo a))
+resolveDockerRef :: DevOp env (DockerizedDaemon a)
+                 -> DevOp env (Resolver (DockerBridgeInfo a))
 resolveDockerRef service =
     resolveRef ref ((,) <$> service <*> Cmd.docker)
   where
     ref = fmap _daemonBridgeInfo service
 
-resolveDockerRemote :: DevOp (DockerizedDaemon a) -> DevOp (Resolver (Remoted a))
+resolveDockerRemote :: DevOp env (DockerizedDaemon a) -> DevOp env (Resolver (Remoted a))
 resolveDockerRemote mkService = do
     (DockerizedDaemon service _ _) <- mkService
     (fmap . fmap) (g service) (resolveDockerRef mkService)
@@ -285,12 +286,13 @@ resolveDockerRemote mkService = do
 -- that the main forked thread does not die.
 dockerizedDaemon
   :: Name
-  -> DevOp DockerImage
-  -> Continued (f (Daemon a))
-  -> (DevOp StandbyContainer -> DevOp StandbyContainer)
-  -> DevOp (DockerizedDaemon (Maybe (f (Daemon a))))
-dockerizedDaemon name mkImage cont beforeStart = declare op $ do
-    let obj = eval cont
+  -> DevOp env DockerImage
+  -> Continued env (f (Daemon a))
+  -> env
+  -> (DevOp env StandbyContainer -> DevOp env StandbyContainer)
+  -> DevOp env (DockerizedDaemon (Maybe (f (Daemon a))))
+dockerizedDaemon name mkImage cont env beforeStart = declare op $ do
+    let obj = eval env cont
     let (BinaryCall selfPath fArgs) = callback cont
     let args = fArgs Upkeep
     let selfBin = preExistingFile selfPath
@@ -308,7 +310,7 @@ dockerizedDaemon name mkImage cont beforeStart = declare op $ do
                     noAction
 
 -- | Commit an image from a container.
-committedImage :: DevOp (Dockerized a) -> DevOp DockerImage
+committedImage :: DevOp env (Dockerized a) -> DevOp env DockerImage
 committedImage mkDockerized = devop fst mkOp $ do
     (Dockerized _ cntner) <- mkDockerized
     let (DockerImage baseImageName) = containerImage cntner
@@ -330,7 +332,7 @@ committedImage mkDockerized = devop fst mkOp $ do
                 noAction
 
 -- | Fetches a file from a container.
-fetchFile :: FilePath -> DevOp (Dockerized (Maybe FilePresent)) -> DevOp (FilePresent)
+fetchFile :: FilePath -> DevOp env (Dockerized (Maybe FilePresent)) -> DevOp env (FilePresent)
 fetchFile path mkFp =
     fmap f (generatedFile path Cmd.docker mkArgs)
   where
@@ -346,7 +348,7 @@ fetchFile path mkFp =
                ]
 
 -- | Fetches the logs from a container.
-fetchLogs :: FilePath -> DevOp (Dockerized a) -> DevOp FilePresent
+fetchLogs :: FilePath -> DevOp env (Dockerized a) -> DevOp env FilePresent
 fetchLogs path mkDock = ioFile path io
   where
     io = do

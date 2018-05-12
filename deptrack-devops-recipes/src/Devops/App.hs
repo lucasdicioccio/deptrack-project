@@ -30,7 +30,7 @@ app :: Name -> Binary a -> DirectoryPresent -> App a b
 app n b path = App b n path
 
 -- | An application for which information is passed as type arguments.
-application :: Name -> DevOp (Binary a) -> DevOp DirectoryPresent -> DevOp (App a b)
+application :: Name -> DevOp env (Binary a) -> DevOp env DirectoryPresent -> DevOp env (App a b)
 application proj runtime dir = app proj <$> runtime <*> dir
 
 -- | A command for an application.
@@ -45,10 +45,10 @@ type instance DaemonConfig (App a b) = (App a b, AppCommand a b)
 
 daemonizeApp :: (KnownSymbol a, KnownSymbol b)
              => Name
-             -> DevOp (App a b)
+             -> DevOp env (App a b)
              -> AppCommand a b
-             -> Maybe (DevOp (User, Group))
-             -> DevOp (Daemon (App a b))
+             -> Maybe (DevOp env (User, Group))
+             -> DevOp env (Daemon (App a b))
 daemonizeApp name mkApp cmd mkUserGroup = do
     let mkBinary = fmap appBinary mkApp
     daemon name mkUserGroup mkBinary (\(x,f) -> f x) ((,) <$> mkApp <*> return cmd)
