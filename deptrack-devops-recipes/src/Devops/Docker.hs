@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE DeriveFunctor             #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE TypeFamilies              #-}
@@ -25,9 +26,12 @@ module Devops.Docker (
   , fetchFile
   , fetchLogs
   , resolveDockerRemote
+  -- to move
+  , HasOS (..)
   ) where
 
 import           Control.Monad (guard)
+import           Control.Applicative ((<|>))
 import           Data.Aeson
 import           Data.Maybe (isJust)
 import           Data.Monoid ((<>))
@@ -63,29 +67,37 @@ preExistingDockerImage name =
                     noAction
                     noAction
 
+class HasOS a where
+  os :: a -> String
+
+docker :: HasOS env => DevOp env (Binary "docker")
+docker = (onDebian *> Cmd.docker) <|> binary
+  where
+    onDebian = guardEnv (\env -> os env == "debian")
+
 -- | A named Docker image from a simple base.
 --
 -- TODO: consider relaxing BaseImage's FilePresent to a URL (e.g., using a
 -- TypeFamily to specialize the type). Indeed, we can download a BaseImage from
 -- a repository using Docker.
-dockerImage :: Name -> DevOp env (BaseImage DockerBase) -> DevOp env (DockerImage)
+dockerImage :: HasOS env => Name -> DevOp env (BaseImage DockerBase) -> DevOp env (DockerImage)
 dockerImage name mkBase = devop fst mkOp $ do
     base <- mkBase
-    docker <- Cmd.docker
-    return (DockerImage name, (docker, base))
+    dock <- docker
+    return (DockerImage name, (dock, base))
   where
-    mkOp (_, (docker, base)) =
+    mkOp (_, (dock, base)) =
         let path = getFilePresentPath (imagePath base) in
         let hasName n dat = n `elem` lines dat in
         buildOp ("docker-image: " <> name)
                 ("imports " <> convertString path <> " as " <> name)
                 (checkBinaryExitCodeAndStdout (hasName $ convertString name)
-                     docker [ "images"
+                     dock [ "images"
                             , "--format", "{{title .Repository}}"
                             ]
                             "")
-                (blindRun docker ["import", path, convertString name] "")
-                (blindRun docker ["rmi", convertString name] "")
+                (blindRun dock ["import", path, convertString name] "")
+                (blindRun dock ["rmi", convertString name] "")
                 noAction
 
 -- | Docker containers are built from an image and run a given command.
@@ -110,7 +122,7 @@ newtype RunningContainer = RunningContainer { getRunning :: Container }
 -- | Spawns a container for running a command but does not start it.
 --
 -- It's cid is stored in a file in /var/run/devops.
-standbyContainer :: Name
+standbyContainer :: HasOS env => Name
                  -> DevOp env DockerImage
                  -> DevOp env ContainerCommand
                  -> DevOp env StandbyContainer
@@ -119,23 +131,23 @@ standbyContainer name mkImage mkCmd = devop fst mkOp $ do
     let cidFile = dirPath </> Text.unpack name <> ".le-cid"
     image@(DockerImage imageName) <- mkImage
     cmd <- mkCmd
-    docker <- Cmd.docker
-    return $ (StandbyContainer $ Container name cidFile image cmd, (docker, imageName))
+    dock <- docker
+    return $ (StandbyContainer $ Container name cidFile image cmd, (dock, imageName))
   where
-    mkOp (StandbyContainer (Container _ cidFile _ cmd), (docker, imageName)) =
+    mkOp (StandbyContainer (Container _ cidFile _ cmd), (dock, imageName)) =
         let (potentialCopy, callbackPath, args) = case cmd of
                 (ExistingContainerCommand fp argv) -> (return (), fp, argv)
                 (ImportedContainerCommand (FilePresent srcBin) argv) ->
                     let cb = "/devops-callback"
                         action = do
-                            blindRun docker [ "cp" , srcBin
+                            blindRun dock [ "cp" , srcBin
                                             , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
         in
         buildOp ("docker-container-standby: " <> name)
                 ("creates " <> name <> " from image " <> imageName <> " with args: " <> convertString (show callbackPath) <> " " <> convertString (show args))
                 (checkFilePresent cidFile)
-                (blindRun docker ([ "create"
+                (blindRun dock ([ "create"
                                  , "--cidfile" , cidFile
                                  , "--name" , convertString name
                                  , convertString imageName
@@ -143,31 +155,31 @@ standbyContainer name mkImage mkCmd = devop fst mkOp $ do
                                  ] ++ args ) ""
                 >> potentialCopy)
                 (blindRemoveLink cidFile
-                 >> blindRun docker [ "rm" , convertString name ] "")
+                 >> blindRun dock [ "rm" , convertString name ] "")
                 noAction
 
 -- | Starts a standing-by container and wait for it depending on a waitmode.
-runningContainer :: DockerWaitMode
+runningContainer :: HasOS env => DockerWaitMode
                  -> DevOp env StandbyContainer
                  -> DevOp env RunningContainer
 runningContainer waitmode standby = devop fst mkOp $ do
     running <- RunningContainer . getStandby <$> standby
-    docker <- Cmd.docker
-    return $ (running, docker)
+    dock <- docker
+    return $ (running, dock)
   where
-    mkOp (RunningContainer (Container name cidFile _ _), docker) =
+    mkOp (RunningContainer (Container name cidFile _ _), dock) =
         let waitAction = case waitmode of
                 NoWait -> return ()
-                Wait -> blindRun docker [ "wait" , convertString name ] ""
+                Wait -> blindRun dock [ "wait" , convertString name ] ""
         in
         buildOp ("docker-container-running: " <> name)
                 ("starts " <> name)
                 (checkFilePresent cidFile)
-                (blindRun docker [ "start" , convertString name ] ""
+                (blindRun dock [ "start" , convertString name ] ""
                  >> waitAction)
                 (blindRemoveLink cidFile
-                 >> blindRun docker [ "stop" , convertString name ] "")
-                (blindRun docker [ "restart" , convertString name ] ""
+                 >> blindRun dock [ "stop" , convertString name ] "")
+                (blindRun dock [ "restart" , convertString name ] ""
                  >> waitAction)
 
 data Dockerized a =
@@ -175,46 +187,46 @@ data Dockerized a =
                , dockerizedContainer :: !Container
                } deriving Functor
 
-insertFile :: DevOp env FilePresent
+insertFile :: HasOS env => DevOp env FilePresent
            -> FilePath
            -> DevOp env StandbyContainer
            -> DevOp env StandbyContainer
 insertFile mkFile tgt mkStandby = devop fst mkOp $ do
     (FilePresent local) <- mkFile
     standby <- mkStandby
-    docker <- Cmd.docker
-    return (standby, (docker, convertString local))
+    dock <- docker
+    return (standby, (dock, convertString local))
   where
-    mkOp (standby, (docker, local)) =
+    mkOp (standby, (dock, local)) =
         let name = containerName . getStandby $ standby in
         buildOp ("upload-file: " <> local)
                 ("upload " <> local <> " in container " <> name)
                 noCheck
-                (blindRun docker [ "cp", convertString local , convertString name <> ":" <> tgt ] "")
+                (blindRun dock [ "cp", convertString local , convertString name <> ":" <> tgt ] "")
                 noAction
                 noAction
 
-insertDir :: DevOp env DirectoryPresent
+insertDir :: HasOS env => DevOp env DirectoryPresent
           -> FilePath
           -> DevOp env StandbyContainer
           -> DevOp env StandbyContainer
 insertDir mkDir tgt mkStandby = devop fst mkOp $ do
     (DirectoryPresent local) <- mkDir
     standby <- mkStandby
-    docker <- Cmd.docker
-    return (standby, (docker, convertString local))
+    dock <- docker
+    return (standby, (dock, convertString local))
   where
-    mkOp (standby, (docker, local)) =
+    mkOp (standby, (dock, local)) =
         let name = containerName . getStandby $ standby in
         buildOp ("upload-dir: " <> local)
                 ("upload " <> local <> " in container " <> name)
                 noCheck
-                (blindRun docker [ "cp", convertString local , convertString name <> ":" <> tgt ] "")
+                (blindRun dock [ "cp", convertString local , convertString name <> ":" <> tgt ] "")
                 noAction
                 noAction
 
 
-dockerized :: Name
+dockerized :: HasOS env => Name
            -- ^ the name of the docker container
            -> DevOp env DockerImage
            -- ^ the image used to start this container
@@ -251,18 +263,18 @@ data DockerizedDaemon a =
                      }
 
 instance HasResolver (DockerBridgeInfo b) (DockerizedDaemon b, Binary docker) where
-    resolve _ (DockerizedDaemon _ _ _,Binary docker) = do
-        dat <- readProcess docker [ "network", "inspect", "bridge" ] ""
+    resolve _ (DockerizedDaemon _ _ _,Binary dock) = do
+        dat <- readProcess dock [ "network", "inspect", "bridge" ] ""
         seq (length dat) (return $ convertString dat)
 
-resolveDockerRef :: DevOp env (DockerizedDaemon a)
+resolveDockerRef :: HasOS env => DevOp env (DockerizedDaemon a)
                  -> DevOp env (Resolver (DockerBridgeInfo a))
 resolveDockerRef service =
-    resolveRef ref ((,) <$> service <*> Cmd.docker)
+    resolveRef ref ((,) <$> service <*> docker)
   where
     ref = fmap _daemonBridgeInfo service
 
-resolveDockerRemote :: DevOp env (DockerizedDaemon a) -> DevOp env (Resolver (Remoted a))
+resolveDockerRemote :: HasOS env => DevOp env (DockerizedDaemon a) -> DevOp env (Resolver (Remoted a))
 resolveDockerRemote mkService = do
     (DockerizedDaemon service _ _) <- mkService
     (fmap . fmap) (g service) (resolveDockerRef mkService)
@@ -285,7 +297,7 @@ resolveDockerRemote mkService = do
 -- The Continued below will get called with 'Upkeep' rather than 'TurnUp' so
 -- that the main forked thread does not die.
 dockerizedDaemon
-  :: Name
+  :: HasOS env => Name
   -> DevOp env DockerImage
   -> Continued env (f (Daemon a))
   -> env
@@ -310,31 +322,31 @@ dockerizedDaemon name mkImage cont env beforeStart = declare op $ do
                     noAction
 
 -- | Commit an image from a container.
-committedImage :: DevOp env (Dockerized a) -> DevOp env DockerImage
+committedImage :: HasOS env => DevOp env (Dockerized a) -> DevOp env DockerImage
 committedImage mkDockerized = devop fst mkOp $ do
     (Dockerized _ cntner) <- mkDockerized
     let (DockerImage baseImageName) = containerImage cntner
     let name = baseImageName <> "--" <> containerName cntner
-    docker <- Cmd.docker
-    return $ (DockerImage name, (docker, cntner))
+    dock <- docker
+    return $ (DockerImage name, (dock, cntner))
   where
-    mkOp (DockerImage name, (docker, cntner)) =
+    mkOp (DockerImage name, (dock, cntner)) =
         let hasName n dat = n `elem` lines dat in
         buildOp ("docker-image: " <> name)
                 ("creates " <> name <> " based on container " <> containerName cntner)
                 (checkBinaryExitCodeAndStdout (hasName $ convertString name)
-                     docker [ "images"
+                     dock [ "images"
                             , "--format", "{{title .Repository}}"
                             ]
                             "")
-                (blindRun docker ["commit", convertString $ containerName cntner, convertString name] "")
-                (blindRun docker ["rmi", convertString name] "")
+                (blindRun dock ["commit", convertString $ containerName cntner, convertString name] "")
+                (blindRun dock ["rmi", convertString name] "")
                 noAction
 
 -- | Fetches a file from a container.
-fetchFile :: FilePath -> DevOp env (Dockerized (Maybe FilePresent)) -> DevOp env (FilePresent)
+fetchFile :: HasOS env => FilePath -> DevOp env (Dockerized (Maybe FilePresent)) -> DevOp env (FilePresent)
 fetchFile path mkFp =
-    fmap f (generatedFile path Cmd.docker mkArgs)
+    fmap f (generatedFile path docker mkArgs)
   where
     f (_,_,filepresent) = filepresent
     mkArgs = do
@@ -348,10 +360,10 @@ fetchFile path mkFp =
                ]
 
 -- | Fetches the logs from a container.
-fetchLogs :: FilePath -> DevOp env (Dockerized a) -> DevOp env FilePresent
+fetchLogs :: HasOS env => FilePath -> DevOp env (Dockerized a) -> DevOp env FilePresent
 fetchLogs path mkDock = ioFile path io
   where
     io = do
-        dock <- Cmd.docker
+        dock <- docker
         (Dockerized _ cntnr) <- mkDock
         return $ convertString <$> readProcess (binaryPath dock) ["logs", convertString $ containerName cntnr] ""

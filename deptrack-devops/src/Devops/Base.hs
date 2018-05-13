@@ -30,10 +30,13 @@ module Devops.Base (
   , track
   , declare
   , inject
+  , guardEnv
   , runDevOp
   , getDependenciesOnly
   ) where
 
+import           Control.Applicative    (Alternative)
+import           Control.Monad          (guard)
 import           Control.Monad.Identity (Identity, runIdentity)
 import           Control.Monad.Reader   (ReaderT, runReaderT, ask, lift)
 import           Data.Hashable          (Hashable (..), hash)
@@ -234,3 +237,6 @@ inject m1 m2 = do
   env <- ask
   let tracked = DepTrack.inject (runReaderT m1 env) (runReaderT m2 env)
   lift tracked
+
+guardEnv :: (Monad m, Alternative m) => (e -> Bool) -> DevOpT e m ()
+guardEnv f = ask >>= guard . f

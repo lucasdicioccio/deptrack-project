@@ -27,6 +27,8 @@ import           Devops.Haskell
 import           Devops.Debian.User
 
 data NoEnv = NoEnv
+instance HasOS NoEnv where
+  os _ = "debian"
 
 main :: IO ()
 main = do

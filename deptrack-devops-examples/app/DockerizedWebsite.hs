@@ -35,6 +35,8 @@ import           Devops.Debian.User
 --------------------------------------------------------------------
 
 data NoEnv = NoEnv
+instance HasOS NoEnv where
+  os _ = "not-debian"
 
 -- | Represents the main entry point in our function.
 data Stage =
