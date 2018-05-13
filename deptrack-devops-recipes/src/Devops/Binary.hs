@@ -29,4 +29,5 @@ binary = pure $ f Proxy
   where f :: (KnownSymbol a) => Proxy a -> Binary a
         f proxy = bin (symbolVal proxy)
 
-class HasBinary a (c :: Symbol) where
+-- | A typeclass for binaries installed with package managers.
+class HasBinary package (c :: Symbol) where

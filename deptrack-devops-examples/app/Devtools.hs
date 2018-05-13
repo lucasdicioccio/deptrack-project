@@ -2,34 +2,47 @@
 module Main where
 
 import           Control.Monad (void)
+import           Control.Applicative ((<|>))
 import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
 import           Devops.Debian.Base (deb)
+import           Devops.MacOS.Base (brew)
 import           Devops.Storage (FileContent, fileContent)
 import           Devops.Haskell (stackPackage)
 import           Devops.Debian.User (mereUser)
 import           Devops.Base (DevOp)
+import           Devops.Constraints (HasOS(..), onOS)
 import           Devops.Cli (simpleMain)
 import           Devops.Optimize (optimizeDebianPackages)
 
+data Env = Env String
+instance HasOS Env where
+  os (Env n) = n
+
 main :: IO ()
 main = do
-    args <- getArgs
-    simpleMain devtools [optimizeDebianPackages] args ()
+    (e:args) <- getArgs
+    simpleMain devtools [optimizeDebianPackages] args (Env e)
   where
-    devtools :: DevOp env ()
+    devtools :: HasOS env => DevOp env ()
     devtools = void $ do
         packages 
-        dotFiles
-        ghcid
+        onOS "debian" dotFiles <|> return ()
+        onOS "debian" ghcid <|> return ()
 
-packages :: DevOp env ()
-packages = void $ do
-    deb "git-core"
-    deb "vim"
-    deb "tmux"
-    deb "graphviz"
+packages :: HasOS env => DevOp env ()
+packages = debianLike <|> macOSLike
+  where
+    debianLike = onOS "debian" $ void $ do
+        deb "git-core"
+        deb "vim"
+        deb "tmux"
+        deb "graphviz"
+    macOSLike = onOS "mac-os" $ void $ do
+        brew "tree"
+        brew "tmux"
+        brew "graphviz"
 
 dotFiles :: DevOp env ()
 dotFiles = void $ do
@@ -56,7 +69,6 @@ dotBashProfile = pure $ convertString $ unlines $ [
     "# Adds stack-binaries to bash_profile."
   , "export PATH=\"${PATH}:${HOME}/.local/bin\""
   ]
-
 
 ghcid :: DevOp env ()
 ghcid = void $ do

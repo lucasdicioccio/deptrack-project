@@ -43,6 +43,7 @@ library
                   , Devops.Git
                   , Devops.Haskell
                   , Devops.Linux
+                  , Devops.MacOS.Base
                   , Devops.Networking
                   , Devops.Nginx
                   , Devops.OS
