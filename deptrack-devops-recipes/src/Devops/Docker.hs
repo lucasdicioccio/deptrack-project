@@ -26,8 +26,6 @@ module Devops.Docker (
   , fetchFile
   , fetchLogs
   , resolveDockerRemote
-  -- to move
-  , HasOS (..)
   ) where
 
 import           Control.Monad (guard)
@@ -45,13 +43,18 @@ import           Devops.BaseImage
 import           Devops.Binary
 import           Devops.Callback
 import           Devops.Cli
-import qualified Devops.Debian.Commands as Cmd
+import           Devops.Constraints (HasOS, onOS)
+import qualified Devops.Debian.Commands as Debian
 import           Devops.DockerBootstrap
 import           Devops.Networking
 import           Devops.Utils
 import           Devops.Ref
 import           Devops.Service
 import           Devops.Storage
+
+-- | An OS-specific Docker binary.
+docker :: HasOS env => DevOp env (Binary "docker")
+docker = onOS "debian" Debian.docker <|> binary
 
 data DockerImage = DockerImage !Name
 
@@ -66,14 +69,6 @@ preExistingDockerImage name =
                     noAction
                     noAction
                     noAction
-
-class HasOS a where
-  os :: a -> String
-
-docker :: HasOS env => DevOp env (Binary "docker")
-docker = (onDebian *> Cmd.docker) <|> binary
-  where
-    onDebian = guardEnv (\env -> os env == "debian")
 
 -- | A named Docker image from a simple base.
 --
@@ -93,9 +88,9 @@ dockerImage name mkBase = devop fst mkOp $ do
                 ("imports " <> convertString path <> " as " <> name)
                 (checkBinaryExitCodeAndStdout (hasName $ convertString name)
                      dock [ "images"
-                            , "--format", "{{title .Repository}}"
-                            ]
-                            "")
+                          , "--format", "{{title .Repository}}"
+                          ]
+                          "")
                 (blindRun dock ["import", path, convertString name] "")
                 (blindRun dock ["rmi", convertString name] "")
                 noAction
@@ -141,18 +136,18 @@ standbyContainer name mkImage mkCmd = devop fst mkOp $ do
                     let cb = "/devops-callback"
                         action = do
                             blindRun dock [ "cp" , srcBin
-                                            , convertString name <> ":" <> cb ] ""
+                                          , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
         in
         buildOp ("docker-container-standby: " <> name)
                 ("creates " <> name <> " from image " <> imageName <> " with args: " <> convertString (show callbackPath) <> " " <> convertString (show args))
                 (checkFilePresent cidFile)
                 (blindRun dock ([ "create"
-                                 , "--cidfile" , cidFile
-                                 , "--name" , convertString name
-                                 , convertString imageName
-                                 , callbackPath
-                                 ] ++ args ) ""
+                                , "--cidfile" , cidFile
+                                , "--name" , convertString name
+                                , convertString imageName
+                                , callbackPath
+                                ] ++ args ) ""
                 >> potentialCopy)
                 (blindRemoveLink cidFile
                  >> blindRun dock [ "rm" , convertString name ] "")

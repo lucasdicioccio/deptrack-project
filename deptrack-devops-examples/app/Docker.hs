@@ -12,6 +12,7 @@ import           Data.String.Conversions (convertString)
 import           System.Environment (getArgs)
 
 import           Devops.Base (DevOp, inject)
+import           Devops.Constraints (HasOS(..))
 import           Devops.BaseImage
 import           Devops.Binary (Binary, HasBinary)
 import           Devops.Callback

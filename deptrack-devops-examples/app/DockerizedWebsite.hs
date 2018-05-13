@@ -16,6 +16,7 @@ import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Callback
 import           Devops.Cli
+import           Devops.Constraints (HasOS(..))
 import           Devops.Debian (deb)
 import qualified Devops.Debian.Commands as Cmd
 import           Devops.Docker
