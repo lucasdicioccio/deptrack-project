@@ -9,6 +9,12 @@ import qualified Devops.MacOS.Packages as Pkg
 docker :: DevOp env (Binary "docker")
 docker = binary `installedWith` Pkg.docker
 
+dockerMachine :: DevOp env (Binary "docker-machine")
+dockerMachine = binary `installedWith` Pkg.dockerMachine
+
+vboxManage :: DevOp env (Binary "VBoxManage")
+vboxManage = binary `installedWith` Pkg.virtualBox
+
 dot :: DevOp env (Binary "dot")
 dot = binary `installedWith` Pkg.graphviz
 

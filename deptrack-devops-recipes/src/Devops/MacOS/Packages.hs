@@ -15,6 +15,16 @@ docker = homebrewPackage
 
 instance HasBinary (HomebrewPackage "docker") "docker" where
 
+dockerMachine :: DevOp env (HomebrewPackage "docker-machine")
+dockerMachine = homebrewPackage
+
+instance HasBinary (HomebrewPackage "docker-machine") "docker-machine" where
+
+virtualBox :: DevOp env (HomebrewPackage "virtualbox")
+virtualBox = caskPackage
+
+instance HasBinary (HomebrewPackage "VBoxManage") "virtualbox" where
+
 graphviz :: DevOp env (HomebrewPackage "graphviz")
 graphviz = homebrewPackage
 

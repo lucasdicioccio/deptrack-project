@@ -45,6 +45,8 @@ packages = debianLike <|> macOSLike
         brew "tmux"
         MacOS.dot
         MacOS.docker
+        MacOS.dockerMachine
+        MacOS.vboxManage
 
 dotFiles :: DevOp env ()
 dotFiles = void $ do

@@ -10,6 +10,7 @@ module Devops.Docker (
     DockerImage
   , dockerImage
   , preExistingDockerImage
+  , pulledDockerImage
   , Container (..)
   , ContainerCommand (..)
   , StandbyContainer (..)
@@ -45,6 +46,7 @@ import           Devops.Callback
 import           Devops.Cli
 import           Devops.Constraints (HasOS, onOS)
 import qualified Devops.Debian.Commands as Debian
+import qualified Devops.MacOS.Commands as MacOS
 import           Devops.DockerBootstrap
 import           Devops.Networking
 import           Devops.Utils
@@ -54,7 +56,7 @@ import           Devops.Storage
 
 -- | An OS-specific Docker binary.
 docker :: HasOS env => DevOp env (Binary "docker")
-docker = onOS "debian" Debian.docker <|> binary
+docker = onOS "debian" Debian.docker <|> onOS "mac-os" MacOS.docker
 
 data DockerImage = DockerImage !Name
 
@@ -69,6 +71,25 @@ preExistingDockerImage name =
                     noAction
                     noAction
                     noAction
+
+-- | An image pulled from the Internet.
+pulledDockerImage :: HasOS env => Name -> DevOp env DockerImage
+pulledDockerImage name = devop fst mkOp $ do
+    dock <- docker
+    return (DockerImage name, dock)
+  where
+    mkOp (_, dock) =
+        let hasName n dat = n `elem` lines dat in
+        buildOp ("docker-pulled-image: " <> name)
+                ("pulls " <> name <> " from the docker hub ")
+                (checkBinaryExitCodeAndStdout (hasName $ convertString name)
+                     dock [ "images"
+                          , "--format", "{{title .Repository}}"
+                          ]
+                          "")
+                (blindRun dock ["pull", convertString name] "")
+                (blindRun dock ["rmi", convertString name] "")
+                noAction
 
 -- | A named Docker image from a simple base.
 --

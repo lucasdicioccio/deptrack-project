@@ -9,7 +9,9 @@
 module Devops.MacOS.Base (
     HomebrewPackage(..)
   , homebrewPackage
+  , caskPackage
   , brew
+  , cask
   , installedWith
   , xcodeSelect
   ) where
@@ -37,6 +39,12 @@ homebrewPackage = f Proxy
     f :: (KnownSymbol a) => Proxy a -> DevOp env (HomebrewPackage a)
     f proxy = brew (Text.pack (symbolVal proxy))
 
+caskPackage :: (KnownSymbol a) => DevOp env (HomebrewPackage a)
+caskPackage = f Proxy
+  where
+    f :: (KnownSymbol a) => Proxy a -> DevOp env (HomebrewPackage a)
+    f proxy = cask (Text.pack (symbolVal proxy))
+
 homebrew :: DevOp env (Binary "brew")
 homebrew = binary
 
@@ -44,7 +52,28 @@ xcodeSelect :: DevOp env (Binary "xcode-select")
 xcodeSelect = binary
 
 brew :: Name -> DevOp env (HomebrewPackage a)
-brew n = fmap snd $ track mkOp $ do
+brew n = bareBrew n []
+
+data BrewTap = BrewTap !Name
+
+tap :: Name -> DevOp env BrewTap
+tap n = fmap snd $ track mkOp $ do
+    b <- homebrew
+    return (b, BrewTap n)
+  where
+    mkOp (b,_) = buildPreOp
+        ("brew-tap: " <> n)
+        ("installs brew tap: " <> n)
+        noCheck
+        (blindRun b ["tap", Text.unpack n] "")
+        noAction
+        noAction
+
+cask :: Name -> DevOp env (HomebrewPackage a)
+cask n = fmap fst $ bareBrew n ["cask"] `inject` tap "caskroom/cask" -- unclear to me whether we still need to tap into cask
+
+bareBrew :: Name -> [String] -> DevOp env (HomebrewPackage a)
+bareBrew n installArgs = fmap snd $ track mkOp $ do
     brewBin <- homebrew
     return (brewBin, HomebrewPackage n)
   where
@@ -62,6 +91,6 @@ brew n = fmap snd $ track mkOp $ do
         ""
     up b = do
         blindRun b ["update"] ""
-        blindRun b (["install"] ++ [Text.unpack n]) ""
+        blindRun b (installArgs ++ ["install", Text.unpack n]) ""
     down b =
         blindRun b (["uninstall"] ++ [Text.unpack n]) ""
