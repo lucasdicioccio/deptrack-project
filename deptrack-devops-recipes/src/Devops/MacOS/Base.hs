@@ -11,6 +11,7 @@ module Devops.MacOS.Base (
   , homebrewPackage
   , brew
   , installedWith
+  , xcodeSelect
   ) where
 
 import           Data.Monoid    ((<>))
@@ -30,8 +31,6 @@ installedWith
   -> DevOp env (Binary c)
 b `installedWith` pkg = pkg *> b -- works because binary is generally pure
 
-instance HasBinary (HomebrewPackage "docker") "docker" where
-
 homebrewPackage :: (KnownSymbol a) => DevOp env (HomebrewPackage a)
 homebrewPackage = f Proxy
   where
@@ -40,6 +39,9 @@ homebrewPackage = f Proxy
 
 homebrew :: DevOp env (Binary "brew")
 homebrew = binary
+
+xcodeSelect :: DevOp env (Binary "xcode-select")
+xcodeSelect = binary
 
 brew :: Name -> DevOp env (HomebrewPackage a)
 brew n = fmap snd $ track mkOp $ do

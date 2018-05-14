@@ -44,6 +44,8 @@ library
                   , Devops.Haskell
                   , Devops.Linux
                   , Devops.MacOS.Base
+                  , Devops.MacOS.Commands
+                  , Devops.MacOS.Packages
                   , Devops.Networking
                   , Devops.Nginx
                   , Devops.OS

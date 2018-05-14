@@ -8,6 +8,7 @@ import           System.Environment (getArgs)
 
 import           Devops.Debian.Base (deb)
 import           Devops.MacOS.Base (brew)
+import qualified Devops.MacOS.Commands as MacOS
 import           Devops.Storage (FileContent, fileContent)
 import           Devops.Haskell (stackPackage)
 import           Devops.Debian.User (mereUser)
@@ -42,7 +43,8 @@ packages = debianLike <|> macOSLike
     macOSLike = onOS "mac-os" $ void $ do
         brew "tree"
         brew "tmux"
-        brew "graphviz"
+        MacOS.dot
+        MacOS.docker
 
 dotFiles :: DevOp env ()
 dotFiles = void $ do
