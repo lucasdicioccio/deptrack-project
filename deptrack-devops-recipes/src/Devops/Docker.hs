@@ -27,6 +27,8 @@ module Devops.Docker (
   , fetchFile
   , fetchLogs
   , resolveDockerRemote
+  , DockerMachine (..)
+  , dockerMachine
   ) where
 
 import           Control.Monad (guard)
@@ -54,9 +56,33 @@ import           Devops.Ref
 import           Devops.Service
 import           Devops.Storage
 
+data DockerMachine = DockerMachine !Name
+
+dockerMachine :: HasOS env => Name -> DevOp env (DockerMachine)
+dockerMachine name = devop fst mkOp $ do
+    dockm <- onOS "mac-os" $ MacOS.dockerMachine
+    _     <- onOS "mac-os" $ MacOS.vboxManage
+    return (DockerMachine name, dockm)
+  where
+    mkOp (_, dockm) =
+        buildOp ("docker-machine: " <> name)
+                ("creates docker machine " <> name)
+                verifyExists
+                (create >> start)
+                delete
+                noAction
+        where
+            create = blindRun dockm ["create", "-d", "virtualbox", "--virtualbox-memory", "2048", convertString name] ""
+            start  = blindRun dockm ["start", convertString name] ""
+            delete = blindRun dockm ["rm", convertString name] ""
+            verifyExists =
+                let listsName dat = convertString name `elem` lines dat
+                in (checkBinaryExitCodeAndStdout listsName
+                     dockm [ "ls" , "--format", "{{.Name}}" ] "")
+
 -- | An OS-specific Docker binary.
 docker :: HasOS env => DevOp env (Binary "docker")
-docker = onOS "debian" Debian.docker <|> onOS "mac-os" MacOS.docker
+docker = onOS "debian" Debian.docker <|> onOS "mac-os" (dockerMachine "default" >> MacOS.docker)
 
 data DockerImage = DockerImage !Name
 
