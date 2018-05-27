@@ -15,6 +15,9 @@ dockerMachine = binary `installedWith` Pkg.dockerMachine
 vboxManage :: DevOp env (Binary "VBoxManage")
 vboxManage = binary `installedWith` Pkg.virtualBox
 
+git :: DevOp env (Binary "git")
+git = binary `installedWith` Pkg.git
+
 dot :: DevOp env (Binary "dot")
 dot = binary `installedWith` Pkg.graphviz
 

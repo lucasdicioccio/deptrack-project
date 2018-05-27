@@ -25,6 +25,11 @@ virtualBox = caskPackage
 
 instance HasBinary (HomebrewPackage "VBoxManage") "virtualbox" where
 
+git :: DevOp env (HomebrewPackage "git")
+git = homebrewPackage
+
+instance HasBinary (HomebrewPackage "git") "git" where
+
 graphviz :: DevOp env (HomebrewPackage "graphviz")
 graphviz = homebrewPackage
 
