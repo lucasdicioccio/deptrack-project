@@ -9,6 +9,7 @@ packages:
          git: https://github.com/lucasdicioccio/hdo.git
          commit: 0b37825588a80cecec51c09fce7181fa2b912044
   extra-dep: true
+- 'personal-configs'
 extra-deps:
 - 'dotgen-0.4.2'
 - 'http-querystring-1.0'
