@@ -7,7 +7,7 @@
 {-# LANGUAGE FlexibleInstances         #-}
 
 module Devops.Docker (
-    DockerImage
+    DockerImage (..)
   , dockerImage
   , preExistingDockerImage
   , pulledDockerImage
@@ -185,12 +185,13 @@ standbyContainer name mkImage mkCmd = devop fst mkOp $ do
                             blindRun dock [ "cp" , srcBin
                                           , convertString name <> ":" <> cb ] ""
                     in  (action, cb, argv)
+            volumes = [] -- TODO: pass -v  somePath<>":/mount" optionally
         in
         buildOp ("docker-container-standby: " <> name)
                 ("creates " <> name <> " from image " <> imageName <> " with args: " <> convertString (show callbackPath) <> " " <> convertString (show args))
                 (checkFilePresent cidFile)
-                (blindRun dock ([ "create"
-                                , "--cidfile" , cidFile
+                (blindRun dock ("create" : volumes ++ [
+                                  "--cidfile" , cidFile
                                 , "--name" , convertString name
                                 , convertString imageName
                                 , callbackPath
