@@ -91,17 +91,25 @@ instance HasResolver DockerMachineEnv (DockerMachine, Binary dockm) where
 
 parseEnv :: String -> [(String, String)]
 parseEnv = catMaybes . fmap parseLine . lines
+
 parseLine :: String -> Maybe (String, String)
 parseLine orig = do
   rest <- List.stripPrefix "export " orig
   parsePair (List.break (=='=') rest)
 
 parsePair :: (String, String) -> Maybe (String, String)
-parsePair ("", xs)       = Nothing
-parsePair (key, '=':val) = Just (key, unescape val)
-parsePair _              = Nothing
+parsePair ("", _)      = Nothing
+parsePair (k, '=':val) = Just (k, unescapeWhole val)
+parsePair _            = Nothing
 
-unescape = id
+unescapeWhole :: String -> String
+unescapeWhole str = unescape $ unquote str
+  where
+    unquote xs = take (length xs - 2) (drop 1 xs)
+    unescape ('\\':'\\':xs) = '\\' : unescape xs
+    unescape ('\\':x:xs)    = x : unescape xs
+    unescape (x:xs)         = x : unescape xs
+    unescape x              = x
 
 resolveDockerEnv :: HasOS env => Name -> DevOp env (Resolver DockerMachineEnv)
 resolveDockerEnv name =
