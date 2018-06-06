@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE FlexibleContexts          #-}
 
 module Devops.Docker (
     DockerImage (..)
@@ -29,12 +30,14 @@ module Devops.Docker (
   , resolveDockerRemote
   , DockerMachine (..)
   , dockerMachine
+  , resolveDockerEnv
   ) where
 
 import           Control.Monad (guard)
 import           Control.Applicative ((<|>))
 import           Data.Aeson
-import           Data.Maybe (isJust)
+import qualified Data.List               as List
+import           Data.Maybe (catMaybes, isJust)
 import           Data.Monoid ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
@@ -58,8 +61,8 @@ import           Devops.Storage
 
 data DockerMachine = DockerMachine !Name
 
-dockerMachine :: HasOS env => Name -> DevOp env (DockerMachine)
-dockerMachine name = devop fst mkOp $ do
+dockerMachine :: HasOS env => Name -> DevOp env (DockerMachine, Binary "docker-machine")
+dockerMachine name = devop id mkOp $ do
     dockm <- onOS "mac-os" $ MacOS.dockerMachine
     _     <- onOS "mac-os" $ MacOS.vboxManage
     return (DockerMachine name, dockm)
@@ -79,6 +82,30 @@ dockerMachine name = devop fst mkOp $ do
                 let listsName dat = convertString name `elem` lines dat
                 in (checkBinaryExitCodeAndStdout listsName
                      dockm [ "ls" , "--format", "{{.Name}}" ] "")
+
+type DockerMachineEnv = [(String, String)]
+instance HasResolver DockerMachineEnv (DockerMachine, Binary dockm) where
+    resolve _ (_,Binary dockm) = do
+        dat <- readProcess dockm [ "env" ] ""
+        seq (length dat) (return $ parseEnv dat)
+
+parseEnv :: String -> [(String, String)]
+parseEnv = catMaybes . fmap parseLine . lines
+parseLine :: String -> Maybe (String, String)
+parseLine orig = do
+  rest <- List.stripPrefix "export " orig
+  parsePair (List.break (=='=') rest)
+
+parsePair :: (String, String) -> Maybe (String, String)
+parsePair ("", xs)       = Nothing
+parsePair (key, '=':val) = Just (key, unescape val)
+parsePair _              = Nothing
+
+unescape = id
+
+resolveDockerEnv :: HasOS env => Name -> DevOp env (Resolver DockerMachineEnv)
+resolveDockerEnv name =
+    resolveRef (saveRef $ "docker-machine-ref:" <> name) (dockerMachine name)
 
 -- | An OS-specific Docker binary.
 docker :: HasOS env => DevOp env (Binary "docker")
