@@ -36,6 +36,7 @@ module Devops.Docker (
 import           Control.Monad (guard)
 import           Control.Applicative ((<|>))
 import           Data.Aeson
+import           Data.CaseInsensitive (CI)
 import qualified Data.List               as List
 import           Data.Maybe (catMaybes, isJust)
 import           Data.Monoid ((<>))
@@ -44,6 +45,7 @@ import qualified Data.Text               as Text
 import           System.FilePath.Posix   ((</>))
 import           System.Process          (readProcess)
 
+import           Data.String (fromString)
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Binary
@@ -165,7 +167,7 @@ dockerImage name mkBase = devop fst mkOp $ do
   where
     mkOp (_, (dock, base)) =
         let path = getFilePresentPath (imagePath base) in
-        let hasName n dat = n `elem` lines dat in
+        let hasName n dat = (fromString n :: CI String) `elem` (fmap fromString $ lines dat) in
         buildOp ("docker-image: " <> name)
                 ("imports " <> convertString path <> " as " <> name)
                 (checkBinaryExitCodeAndStdout (hasName $ convertString name)

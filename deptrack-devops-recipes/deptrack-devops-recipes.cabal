@@ -75,6 +75,7 @@ library
                      , base64-bytestring
                      , binary
                      , bytestring
+                     , case-insensitive
                      , containers
                      , deptrack-core
                      , deptrack-devops

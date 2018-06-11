@@ -82,12 +82,17 @@ crossCompile name mkImg mkSrc = devop fst mkOp $ do
         where
             runInDocker = do
                 env <- resolver dockerEnvR
+                print env
                 path <- makeAbsolute srcPath
                 let mountSpec = path <> ":" <> "/mount"
                 blindRunWithEnv docker [
                     "run"
                   , "--name", convertString name
                   , "-v", mountSpec
+                  , "-w", "/mount/personal-configs"
                   , convertString imgName
-                  , "bash", "-c", "cd /mount && stack build --fast --allow-different-user"
+                  , "stack"
+                  , "build"
+                  , "--fast"
+                  , "--allow-different-user"
                   ] "" env

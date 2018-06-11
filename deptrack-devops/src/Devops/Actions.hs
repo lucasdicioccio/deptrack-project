@@ -7,6 +7,7 @@ module Devops.Actions (
     , listUniqNodes
     ) where
 
+import           Control.Concurrent.Async    (waitCatch)
 import           Control.Concurrent.STM      (STM, atomically)
 import           Control.Concurrent.STM.TVar (TVar, readTVar)
 import           Control.Lens                (view)
@@ -54,7 +55,8 @@ checkStatuses :: OpGraph -> IO (Map OpUniqueId CheckResult)
 checkStatuses graph = do
     let s = snapshot TurnedUp graph emptyIntents
     statuses <- atomically $ makeStatusesMap s
-    _ <- checkWholeGraph noBroadcast statuses s graph
+    asyncs <- checkWholeGraph noBroadcast statuses s graph
+    _ <- traverse waitCatch asyncs
     atomically $ extractStatuses statuses
   where
     extractStatuses :: OpStatusesMap -> STM (Map OpUniqueId CheckResult)
