@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE FlexibleContexts          #-}
 
 module Devops.Docker (
     DockerImage (..)
@@ -29,18 +30,22 @@ module Devops.Docker (
   , resolveDockerRemote
   , DockerMachine (..)
   , dockerMachine
+  , resolveDockerEnv
   ) where
 
 import           Control.Monad (guard)
 import           Control.Applicative ((<|>))
 import           Data.Aeson
-import           Data.Maybe (isJust)
+import           Data.CaseInsensitive (CI)
+import qualified Data.List               as List
+import           Data.Maybe (catMaybes, isJust)
 import           Data.Monoid ((<>))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text               as Text
 import           System.FilePath.Posix   ((</>))
 import           System.Process          (readProcess)
 
+import           Data.String (fromString)
 import           Devops.Base
 import           Devops.BaseImage
 import           Devops.Binary
@@ -58,8 +63,8 @@ import           Devops.Storage
 
 data DockerMachine = DockerMachine !Name
 
-dockerMachine :: HasOS env => Name -> DevOp env (DockerMachine)
-dockerMachine name = devop fst mkOp $ do
+dockerMachine :: HasOS env => Name -> DevOp env (DockerMachine, Binary "docker-machine")
+dockerMachine name = devop id mkOp $ do
     dockm <- onOS "mac-os" $ MacOS.dockerMachine
     _     <- onOS "mac-os" $ MacOS.vboxManage
     return (DockerMachine name, dockm)
@@ -79,6 +84,38 @@ dockerMachine name = devop fst mkOp $ do
                 let listsName dat = convertString name `elem` lines dat
                 in (checkBinaryExitCodeAndStdout listsName
                      dockm [ "ls" , "--format", "{{.Name}}" ] "")
+
+type DockerMachineEnv = [(String, String)]
+instance HasResolver DockerMachineEnv (DockerMachine, Binary dockm) where
+    resolve _ (_,Binary dockm) = do
+        dat <- readProcess dockm [ "env" ] ""
+        seq (length dat) (return $ parseEnv dat)
+
+parseEnv :: String -> [(String, String)]
+parseEnv = catMaybes . fmap parseLine . lines
+
+parseLine :: String -> Maybe (String, String)
+parseLine orig = do
+  rest <- List.stripPrefix "export " orig
+  parsePair (List.break (=='=') rest)
+
+parsePair :: (String, String) -> Maybe (String, String)
+parsePair ("", _)      = Nothing
+parsePair (k, '=':val) = Just (k, unescapeWhole val)
+parsePair _            = Nothing
+
+unescapeWhole :: String -> String
+unescapeWhole str = unescape $ unquote str
+  where
+    unquote xs = take (length xs - 2) (drop 1 xs)
+    unescape ('\\':'\\':xs) = '\\' : unescape xs
+    unescape ('\\':x:xs)    = x : unescape xs
+    unescape (x:xs)         = x : unescape xs
+    unescape x              = x
+
+resolveDockerEnv :: HasOS env => Name -> DevOp env (Resolver DockerMachineEnv)
+resolveDockerEnv name =
+    resolveRef (saveRef $ "docker-machine-ref:" <> name) (dockerMachine name)
 
 -- | An OS-specific Docker binary.
 docker :: HasOS env => DevOp env (Binary "docker")
@@ -130,7 +167,7 @@ dockerImage name mkBase = devop fst mkOp $ do
   where
     mkOp (_, (dock, base)) =
         let path = getFilePresentPath (imagePath base) in
-        let hasName n dat = n `elem` lines dat in
+        let hasName n dat = (fromString n :: CI String) `elem` (fmap fromString $ lines dat) in
         buildOp ("docker-image: " <> name)
                 ("imports " <> convertString path <> " as " <> name)
                 (checkBinaryExitCodeAndStdout (hasName $ convertString name)

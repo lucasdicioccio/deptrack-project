@@ -9,13 +9,14 @@ import           Data.String.Conversions (convertString)
 import           Devops.Base (DevOp, devop, buildOp, noAction, noCheck, Name)
 import           Devops.Cli (App (..), Method (..), SelfPath, appMain, appMethod, methodArg)
 import           Devops.Constraints (HasOS(..), onOS)
-import           Devops.Docker (DockerImage(..), pulledDockerImage)
+import           Devops.Docker (DockerImage(..), pulledDockerImage, resolveDockerEnv)
 import           Devops.Git (GitRepo(..), gitCloneSimple)
 import           Devops.Optimize (optimizeDebianPackages)
+import           Devops.Ref
 import           Devops.Storage (DirectoryPresent(..), directory)
 import           Devops.MacOS.Base (brew)
 import qualified Devops.MacOS.Commands as MacOS
-import           Devops.Utils (blindRun)
+import           Devops.Utils (blindRunWithEnv)
 import           System.IO  (BufferMode (..), hSetBuffering, stderr, stdout)
 import           System.Directory (makeAbsolute)
 
@@ -66,24 +67,32 @@ macbookAir = onOS "mac-os" $ void $ do
 crossCompile :: Name -> DevOp Env DockerImage -> DevOp Env DirectoryPresent -> DevOp Env ()
 crossCompile name mkImg mkSrc = devop fst mkOp $ do
     docker <- MacOS.docker
+    dockerMachineEnv <- resolveDockerEnv "default"
     img <- mkImg
     src <- mkSrc
-    return ((), (docker,img,src))
+    return ((), (docker,dockerMachineEnv, img,src))
   where
-    mkOp (_,(docker, (DockerImage imgName), (DirectoryPresent srcPath))) = 
+    mkOp (_,(docker, dockerEnvR, (DockerImage imgName), (DirectoryPresent srcPath))) = 
         buildOp ("cross-compile:" <> convertString srcPath)
                 ("stack-builds " <> convertString srcPath <> " inside " <> imgName <> " as " <> name)
-                noCheck
+                (noCheck)
                 runInDocker
                 noAction
                 noAction
         where
             runInDocker = do
+                env <- resolver dockerEnvR
+                print env
                 path <- makeAbsolute srcPath
                 let mountSpec = path <> ":" <> "/mount"
-                blindRun docker [ "run"
-                                , "--name", convertString name
-                                , "-v", mountSpec
-                                , convertString imgName
-                                , "bash", "-c", "cd /mount && stack build --fast --allow-different-user"
-                                ] ""
+                blindRunWithEnv docker [
+                    "run"
+                  , "--name", convertString name
+                  , "-v", mountSpec
+                  , "-w", "/mount/personal-configs"
+                  , convertString imgName
+                  , "stack"
+                  , "build"
+                  , "--fast"
+                  , "--allow-different-user"
+                  ] "" env

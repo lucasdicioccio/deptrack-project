@@ -1,0 +1,61 @@
+name:           personal-configs
+version:        0.1.0.0
+description:    Personal configs.
+homepage:       https://github.com/lucasdicioccio/personal-configs#readme
+bug-reports:    https://github.com/lucasdicioccio/personal-configs/issues
+author:         Lucas DiCioccio
+maintainer:     lucas@dicioccio.fr
+copyright:      2018 Lucas DiCioccio
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+extra-source-files:
+    ChangeLog.md
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/lucasdicioccio/personal-configs
+
+library
+  exposed-modules:
+      Configs
+  other-modules:
+      Paths_personal_configs
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , directory
+    , deptrack-core
+    , deptrack-devops
+    , deptrack-devops-recipes
+    , string-conversions
+    , text
+  default-language: Haskell2010
+
+executable personal-configs-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_personal_configs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , personal-configs
+  default-language: Haskell2010
+
+test-suite personal-configs-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_personal_configs
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , personal-configs
+  default-language: Haskell2010
