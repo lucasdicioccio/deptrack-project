@@ -136,5 +136,5 @@ nginxConfigs = [
 site :: HostName -> GitUrl -> DevOp env NginxServerConfig
 site host url = StaticSite.gitCloned repo
   where
-    repo = gitClone url "master" Cmd.git (userDirectory (convertString host) user)
+    repo = gitClone url "master" Debian.git (userDirectory (convertString host) user)
     user = mereUser "staticsites"
