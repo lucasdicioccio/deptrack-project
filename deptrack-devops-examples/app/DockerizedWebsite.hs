@@ -18,7 +18,7 @@ import           Devops.Callback
 import           Devops.Cli
 import           Devops.Constraints (HasOS(..))
 import           Devops.Debian (deb)
-import qualified Devops.Debian.Commands as Cmd
+import qualified Devops.Debian.Commands as Debian
 import           Devops.Docker
 import           Devops.DockerBootstrap
 import           Devops.Git (GitUrl, gitClone)
