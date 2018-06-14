@@ -11,6 +11,7 @@ import           Prelude                 hiding (readFile)
 import           System.FilePath         ((</>))
 import           System.IO.Strict        (readFile)
 
+import           Devops.Constraints (HasOS)
 import           Devops.Debian.Commands
 import           Devops.Debian.User      (homeDirPath)
 import           Devops.Networking
@@ -70,7 +71,11 @@ signKey ca toSign = track mkOp $ do
 
 data AuthorizedRemote = AuthorizedRemote !ControlledHost !SSHSignedUserKey
 
-authorizedRemote :: DevOp env SSHSignedUserKey -> DevOp env ControlledHost -> DevOp env AuthorizedRemote
+authorizedRemote
+  :: HasOS env
+  => DevOp env SSHSignedUserKey
+  -> DevOp env ControlledHost
+  -> DevOp env AuthorizedRemote
 authorizedRemote signedKey host = track mkOp $ do
   let privkey = getPrivate . privateKey . signedKeyPair <$> signedKey
   let pubkey  = getPublic . publicKey . signedKeyPair <$> signedKey
@@ -106,7 +111,9 @@ buildAuthorizedKeysContent aks = do
 
 -- | Locally builds and sends a .ssh/authorized_keys file for a given user.
 -- TODO: explore ways to download public keys from the remote
-sendAuthorizedKeys :: FilePath
+sendAuthorizedKeys
+  :: HasOS env
+  => FilePath
   -> DevOp env (AuthorizedKeys)
   -> DevOp env ControlledHost
   -> DevOp env (FileTransferred)

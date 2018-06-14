@@ -18,7 +18,7 @@ import           Devops.Callback
 import           Devops.Cli
 import           Devops.Constraints (HasOS(..))
 import           Devops.Debian (deb)
-import qualified Devops.Debian.Commands as Cmd
+import qualified Devops.Debian.Commands as Debian
 import           Devops.Docker
 import           Devops.DockerBootstrap
 import           Devops.Git (GitUrl, gitClone)
@@ -136,5 +136,5 @@ nginxConfigs = [
 site :: HostName -> GitUrl -> DevOp env NginxServerConfig
 site host url = StaticSite.gitCloned repo
   where
-    repo = gitClone url "master" Cmd.git (userDirectory (convertString host) user)
+    repo = gitClone url "master" Debian.git (userDirectory (convertString host) user)
     user = mereUser "staticsites"

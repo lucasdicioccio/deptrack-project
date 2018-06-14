@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Devops.Parasite (
     ParasitedHost (..)
@@ -11,6 +12,7 @@ module Devops.Parasite (
   , FileTransferred
   ) where
 
+import           Control.Applicative         ((<|>))
 import           Data.Monoid                 ((<>))
 import           Data.String.Conversions     (convertString)
 import           Data.Text                   (Text)
@@ -18,9 +20,11 @@ import qualified Data.Text                   as Text
 import           Data.Typeable               (Typeable)
 import           System.FilePath.Posix       (takeBaseName, (</>))
 
+import           Devops.Binary (Binary, binary)
 import           Devops.Callback
 import           Devops.Cli
-import           Devops.Debian.Commands      hiding (r, umount)
+import           Devops.Constraints (HasOS, onOS)
+import qualified Devops.Debian.Commands      as Debian
 import           Devops.Debian.User          (homeDirPath)
 import           Devops.Networking
 import           Devops.Storage
@@ -55,7 +59,11 @@ control login mkRemote = devop fst mkOp $ do
 --
 -- The remote binary will take precedence in 'BinaryCall' from 'remoted'
 -- 'Continued' argument.
-parasite :: FilePath -> DevOp env ControlledHost -> DevOp env ParasitedHost
+parasite
+  :: HasOS env
+  => FilePath
+  -> DevOp env ControlledHost
+  -> DevOp env ParasitedHost
 parasite selfPath mkHost = track mkOp $ do
     (ControlledHost login _) <- mkHost
     let selfBinary = preExistingFile selfPath
@@ -67,11 +75,12 @@ parasite selfPath mkHost = track mkOp $ do
                                        ("copies itself after in a parasite")
 
 -- | Turnup a given DevOp env at a given remote.
-remoted :: Typeable a
-        => Continued env a
-        -> env
-        -> DevOp env ParasitedHost
-        -> DevOp env (Remoted (Maybe a))
+remoted
+  :: (HasOS env, Typeable a)
+  => Continued env a
+  -> env
+  -> DevOp env ParasitedHost
+  -> DevOp env (Remoted (Maybe a))
 remoted cont env host = devop fst mkOp $ do
     c <- ssh
     let obj = eval env cont
@@ -95,11 +104,19 @@ remoted cont env host = devop fst mkOp $ do
       , "sudo", "-E", rpath
       ] ++ args
 
+scp :: HasOS env => DevOp env (Binary "scp")
+scp = onOS "debian" Debian.scp <|> onOS "mac-os" binary
+
+ssh :: HasOS env => DevOp env (Binary "ssh")
+ssh = onOS "debian" Debian.ssh <|> onOS "mac-os" binary
+
 -- | A file transferred at a remote path.
-fileTransferred :: DevOp env FilePresent
-                -> FilePath
-                -> DevOp env ControlledHost
-                -> DevOp env (FileTransferred)
+fileTransferred
+  :: HasOS env
+  => DevOp env FilePresent
+  -> FilePath
+  -> DevOp env ControlledHost
+  -> DevOp env (FileTransferred)
 fileTransferred mkFp path mkHost = devop fst mkOp $ do
     c <- scp
     f <- mkFp
@@ -126,9 +143,9 @@ data SshFsMountedDir = SshFsMountedDir !FilePath
 
 sshMounted :: DevOp env DirectoryPresent -> DevOp env ControlledHost -> DevOp env (SshFsMountedDir)
 sshMounted mkPath mkHost = devop fst mkOp $ do
-    binmount <- mount
-    sshmount <- sshfs
-    umount <- fusermount
+    binmount <- Debian.mount
+    sshmount <- Debian.sshfs
+    umount <- Debian.fusermount
     (DirectoryPresent path) <- mkPath
     host <- mkHost
     return (SshFsMountedDir path, (host, binmount, sshmount, umount))
