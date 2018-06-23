@@ -34,8 +34,8 @@ sampleDONode debug dropletName =
 
 main :: IO ()
 main = do
-  host:args <- getArgs
-  case args of
-    "-v":args' -> simpleMain (sampleDONode True host)  [optimizeDebianPackages] args' ()
-    args'      -> simpleMain (sampleDONode False host)  [optimizeDebianPackages] args' ()
-
+  let go (host,bool) _ _ = void $ sampleDONode bool host
+  let parse (host:"-v":x) = ((host,True), appMethod $ head x)
+      parse (host:x)      = ((host,False), appMethod $ head x)
+  let unparse _ x = [methodArg x]
+  appMain $ App parse unparse go [optimizeDebianPackages] (\_ -> pure ())

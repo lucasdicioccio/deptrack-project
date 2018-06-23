@@ -190,20 +190,28 @@ sparkCluster numberOfSlaves baseName key = do
       sparkMasterHost = sparkMaster masterHost
   void $ traverse (sparkSlave sparkMasterHost) slaveHosts
 
+type NumSlaves = Int
+type BaseName = String
+type KeyNum = Int
+data Stage =
+    Local NumSlaves BaseName KeyNum
+  | RemoteB64 String
+
+parse :: [String] -> (Stage, Method)
+parse x@(_:b64:args) | isMagicRemoteArgv x =
+    (RemoteB64 b64, appMethod $ head args)
+parse (numSlaves:baseName:key:args) =
+    (Local (read numSlaves) baseName (read key), appMethod $ head args)
+
+unparse :: Stage -> Method -> [String]
+unparse = fail "currently unused in Devops.Bootstrap.Parasite"
+
+stages :: Stage -> SelfPath -> (Stage -> Method -> [String]) -> DevOp NoEnv ()
+stages (Local numSlaves baseName key) _ _ = do
+    sparkCluster numSlaves baseName key
+stages (RemoteB64 b64) _ _ = do
+    unclosure $ opClosureFromB64 (convertString b64) :: DevOp NoEnv ()
+
 main :: IO ()
 main = do
-  args <- getArgs
-  go args
-  where
-    go xs | isMagicRemoteArgv xs = base64EncodedRemoteSetup (drop 1 xs)
-          | otherwise            = localSetup xs
-
-    base64EncodedRemoteSetup :: [String] -> IO ()
-    base64EncodedRemoteSetup (b64:[]) = void $ do
-        let target = unclosure $ opClosureFromB64 (convertString b64) :: DevOp NoEnv ()
-        simpleMain target [optimizeDebianPackages] ["up"] NoEnv
-    base64EncodedNestedSetup _ = Prelude.error "invalid args for magic remote callback"
-
-    localSetup :: [String] -> IO ()
-    localSetup (numSlaves:baseName:key:args) =
-      simpleMain (sparkCluster (read numSlaves) baseName (read key))  [optimizeDebianPackages] args NoEnv
+  appMain $ App parse unparse stages [optimizeDebianPackages] (const $ pure NoEnv)
