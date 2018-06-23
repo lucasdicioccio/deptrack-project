@@ -5,7 +5,6 @@ module Devops.Cli (
     Method (..), Concurrency (..)
   , applyMethod
   -- * Building main programs
-  , simpleMain
   , SelfPath
   , ForestOptimization
   , App (..)
@@ -66,40 +65,6 @@ applyMethod transformations originalForest meth = do
     Dot                   -> putStrLn . defaultDotify $ graph
     CheckDot              -> putStrLn . dotifyWithStatuses graph =<< checkStatuses graph
     List                  -> listUniqNodes forest
-
---------------------------------------------------------------------
-
--- | Simple main function for a single operation.
---
--- You should use this 'simpleMain' for simple configuration binaries, more
--- involved architectures shoul almost need a 'App' or 'appMain'.
-simpleMain :: DevOp env a
-           -- ^ an operation
-           -> [(Forest PreOp -> Forest PreOp)]
-           -- ^ forest transformations to optimize the resulting graph
-           -> [String]
-           -- ^ args
-           -> env
-           -- ^ environment
-           -> IO ()
-simpleMain devop optimizations args env = go args
-  where
-    forest = getDependenciesOnly env devop
-    call m = applyMethod optimizations forest m
-    go ("up":_)        = call $ TurnUp Concurrently
-    go ("up-seq":_)    = call $ TurnUp Sequentially
-    go ("down":_)      = call $ TurnDown Concurrently
-    go ("down-seq":_)  = call $ TurnDown Sequentially
-    go ("upkeep":_)    = call Upkeep
-    go ("print":_)     = call Print
-    go ("dot":_)       = call Dot
-    go ("check-dot":_) = call CheckDot
-    go ("list":_)      = call List
-    go _               = putStrLn usage
-    usage = unlines [ "deptrack-devops default main:"
-                    , "  Available arguments:"
-                    , "    up, down, upkeep, print, dot, check-dot, list"
-                    ]
 
 --------------------------------------------------------------------
 
