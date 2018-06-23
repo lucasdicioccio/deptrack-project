@@ -75,7 +75,7 @@ dockerMachine name = devop id mkOp $ do
                 verifyExists
                 (create >> start)
                 delete
-                noAction
+                start
         where
             create = blindRun dockm ["create", "-d", "virtualbox", "--virtualbox-memory", "2048", convertString name] ""
             start  = blindRun dockm ["start", convertString name] ""
