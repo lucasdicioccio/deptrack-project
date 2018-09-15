@@ -1,4 +1,4 @@
-# Changelog for warp-grpc
+# Changelog for deptrack-core
 
 ## Unreleased changes
 
