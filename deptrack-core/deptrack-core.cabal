@@ -1,5 +1,5 @@
 name:                deptrack-core
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            DepTrack Core types and model.
 description:         Rather than building and maintaing a dependency tree/graph by hand. DepTrack proposes to _track_ dependencies as a side-effect of a computation.
 homepage:            https://github.com/lucasdicioccio/deptrack-project
