@@ -5,6 +5,7 @@ packages:
 - 'deptrack-devops'
 - 'deptrack-devops-recipes'
 - 'deptrack-devops-examples'
+- 'deptrack-dot'
 - location:
          git: https://github.com/lucasdicioccio/hdo.git
          commit: 0b37825588a80cecec51c09fce7181fa2b912044

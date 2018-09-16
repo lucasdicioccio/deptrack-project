@@ -1,0 +1,35 @@
+name:                deptrack-dot
+version:             0.1.0.0
+github:              "lucasdicioccio/deptrack-project"
+license:             Apache-2.0
+author:              "Lucas DiCioccio"
+maintainer:          "lucas@dicioccio.fr"
+copyright:           "2018 Lucas DiCioccio"
+category:            Graphs
+synopsis:            Facilitate Graphviz representations of DepTrack dependencies.
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+description:         Please see the README on GitHub at <https://github.com/lucasdicioccio/deptrack-project#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- containers >= 0.5 && < 0.6
+- deptrack-core >= 0.1 && < 0.2
+- dotgen >= 0.4 && < 0.5
+
+library:
+  source-dirs: src
+
+tests:
+  deptrack-dot-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - deptrack-dot

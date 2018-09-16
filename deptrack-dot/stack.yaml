@@ -1,0 +1,8 @@
+resolver: lts-12.9
+packages:
+- '.'
+extra-deps:
+- deptrack-core-0.1.0.0
+- dotgen-0.4.2
+flags: {}
+extra-package-dbs: []
